@@ -367,31 +367,23 @@ document.getElementById("btnApprove").onclick = () => {
 /* ===== 載入 ===== */
 window.onload = async () => {
   statusInfo.textContent = "系統初始化中…";
-  statusInfo.style.background = "#95a5a6";
-  setButtonsLock(true, "同步中...", "同步中...");
-
+  
+  // 並行處理：同時開始抓 IP 與初始化 LIFF
   try {
-    // 1. 先抓 IP
-    await preloadIP();
-    
-    // 2. 初始化 LIFF 與其他資料
-    await initUser();
-    dataReady = true;
-
-    // 3. 同步啟動 GPS 監聽
-    initGPSWatcher();
-
     await Promise.all([
-      updateTodayRecords(),
-      loadManagers()
+      preloadIP(), 
+      initUser()
     ]);
     
-    // 4. 若 GPS 已經就緒，則進行第一次狀態檢查
+    dataReady = true;
+    initGPSWatcher();
+    
+    // 同時載入紀錄與權限
+    await Promise.all([updateTodayRecords(), loadManagers()]);
+    
     if(lastGPS) updateStatus(true);
-
   } catch (error) {
     console.error("初始化失敗", error);
-    statusInfo.textContent = "初始化失敗";
   }
 };
 </script>
