@@ -167,6 +167,7 @@ async function initUser(){
 }
 
 /* ===== 狀態 ===== */
+/* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
   // 修改：先確認 IP 是否已載入
   if (!cachedIP) {
@@ -296,64 +297,75 @@ async function sendSelfMessage(record){
 }
 
 /* ===== 打卡 ===== */
-async function clockInOut(status) {
-  // 1. 增加防護：如果按鈕已經被禁用（正在處理中），直接返回，避免重複執行
-  const btn = status === "上班" ? btnStart : btnEnd;
-  if (btn.disabled) return; 
-
-  if (!dataReady || !statusLoaded) {
-    Swal.fire({icon: "info", title: "資料讀取中或定位中", timer: 1500, showConfirmButton: false});
+async function clockInOut(status){
+  if(!dataReady || !statusLoaded){
+    Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
     return;
   }
 
   if (lastRangeStatus !== "有效打卡區" && !isManager) {
-    Swal.fire({icon: "warning", title: "目前為無效打卡區", text: "僅主管可打卡", timer: 1500, showConfirmButton: false});
+    Swal.fire({
+      icon: "warning",
+      title: "目前為無效打卡區",
+      text: "僅主管可打卡",
+      timer: 1500,
+      showConfirmButton: false
+    });
     return;
   }
 
-  // 鎖定按鈕
+  const btn = status==="上班"?btnStart:btnEnd;
   btn.disabled = true;
   const originalText = btn.textContent;
+
   let sec = 3;
-  const timer = setInterval(() => {
+  const timer = setInterval(()=>{
     btn.textContent = `打卡中… ${sec}s`;
     sec--;
-    if (sec < 0) clearInterval(timer);
-  }, 1000);
+    if(sec<0) clearInterval(timer);
+  },1000);
 
-  try {
-    if (!lastGPS) {
-      Swal.fire({icon: "warning", title: "定位尚未完成", timer: 1500, showConfirmButton: false});
+  try{
+    if(!lastGPS){
+      Swal.fire({icon:"warning",title:"定位尚未完成",timer:1500,showConfirmButton:false});
       return;
     }
 
     const res = await fetch(API_ENDPOINT, {
-      method: "POST",
-      body: JSON.stringify({ userId, userName, ip: getIP(), gps: lastGPS, status })
+      method:"POST",
+      body: JSON.stringify({userId,userName,ip:getIP(),gps:lastGPS,status})
     });
 
     const data = await res.json();
     const actuallyUpdated = data.message && (data.message.includes("已更新") || data.message.includes("成功"));
 
-    if (actuallyUpdated) {
-      // 成功後的處理
-      const record = { /* ... 保持原樣 ... */ };
-      
-      // ... Swal 提示 ...
+    if(actuallyUpdated){
+      const record = {
+        userName,
+        status: data.status,
+        date: data.date,
+        time: data.time,
+        company: data.company || "未知",
+        rangeStatus: data.rangeStatus
+      };
 
-      await sendSelfMessage(record);
-      await updateTodayRecords();
-      
-      // 關鍵修改：打卡成功後，這裡不需要立刻呼叫 updateStatus()，
-      // 因為 updateStatus 通常由定位監聽器自動觸發，手動呼叫易導致 UI 閃爍
+      if(data.rangeStatus === "有效打卡區"){
+        Swal.fire({icon:"success",title:"打卡成功",timer:2000,showConfirmButton:false});
+      } else {
+        Swal.fire({icon:"warning",title:"打卡無效",timer:2000,showConfirmButton:false});
+      }
+
+      sendSelfMessage(record);
+      updateTodayRecords();
+      updateStatus();
     }
 
-  } catch (err) {
-    Swal.fire({icon: "error", title: "打卡失敗", timer: 2000, showConfirmButton: false});
+  }catch(err){
+    Swal.fire({icon:"error",title:"打卡失敗",timer:2000,showConfirmButton:false});
   } finally {
     clearInterval(timer);
     btn.textContent = originalText;
-    btn.disabled = false; // 恢復按鈕狀態
+    btn.disabled = false;
   }
 }
 
@@ -367,23 +379,31 @@ document.getElementById("btnApprove").onclick = () => {
 /* ===== 載入 ===== */
 window.onload = async () => {
   statusInfo.textContent = "系統初始化中…";
-  
-  // 並行處理：同時開始抓 IP 與初始化 LIFF
+  statusInfo.style.background = "#95a5a6";
+  setButtonsLock(true, "同步中...", "同步中...");
+
   try {
+    // 1. 先抓 IP
+    await preloadIP();
+    
+    // 2. 初始化 LIFF 與其他資料
+    await initUser();
+    dataReady = true;
+
+    // 3. 同步啟動 GPS 監聽
+    initGPSWatcher();
+
     await Promise.all([
-      preloadIP(), 
-      initUser()
+      updateTodayRecords(),
+      loadManagers()
     ]);
     
-    dataReady = true;
-    initGPSWatcher();
-    
-    // 同時載入紀錄與權限
-    await Promise.all([updateTodayRecords(), loadManagers()]);
-    
+    // 4. 若 GPS 已經就緒，則進行第一次狀態檢查
     if(lastGPS) updateStatus(true);
+
   } catch (error) {
     console.error("初始化失敗", error);
+    statusInfo.textContent = "初始化失敗";
   }
 };
 </script>
