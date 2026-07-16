@@ -167,7 +167,18 @@ async function initUser(){
 }
 
 /* ===== 狀態 ===== */
+/* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
+  // 修改：先確認 IP 是否已載入
+  if (!cachedIP) {
+    statusInfo.textContent = "IP 取得中…";
+    statusInfo.style.background = "#95a5a6";
+    setButtonsLock(true, "同步中...", "同步中...");
+    statusLoaded = false;
+    return;
+  }
+
+  // 再確認 GPS
   if (!lastGPS) {
     statusInfo.textContent = "定位中…";
     statusInfo.style.background = "#95a5a6";
@@ -180,7 +191,7 @@ async function updateStatus(forceRefresh = false) {
     const res = await fetch(
       `${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${getIP()}`
     );
-
+    
     const data = await res.json();
     const newStatus = data.rangeStatus;
     if (!newStatus) return;
@@ -367,26 +378,32 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "定位載入中…";
+  statusInfo.textContent = "系統初始化中…";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  initGPSWatcher();
-  preloadIP();
-
   try {
+    // 1. 先抓 IP
+    await preloadIP();
+    
+    // 2. 初始化 LIFF 與其他資料
     await initUser();
     dataReady = true;
+
+    // 3. 同步啟動 GPS 監聽
+    initGPSWatcher();
 
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
+    // 4. 若 GPS 已經就緒，則進行第一次狀態檢查
     if(lastGPS) updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
+    statusInfo.textContent = "初始化失敗";
   }
 };
 </script>
