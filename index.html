@@ -224,24 +224,26 @@ async function updateStatus(forceRefresh = false) {
 
 /* ===== 今日紀錄 ===== */
 async function updateTodayRecords(){
+  todayRecords.innerHTML="載入中...";
   try{
     const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${userId}&date=${getTodayString()}`);
     const data = await res.json();
-    
+
     if(!data.length){
       todayRecords.innerHTML="今日打卡紀錄：無";
       return;
     }
 
-    // 先組裝，再一次寫入
-    let htmlContent = "今日打卡紀錄：<br>";
+    todayRecords.innerHTML="今日打卡紀錄：<br>";
+
     data.forEach(r=>{
-      let color = (r.status === "下班") ? "#2ecc71" : (r.company.includes("錯誤") ? "#e67e22" : "#3498db");
-      htmlContent += `<span style="border-left-color:${color}">${r.status}：${r.time}（${r.company}）</span>`;
+      let color="#3498db";
+      if(r.status==="下班") color="#2ecc71";
+      if(r.company.includes("錯誤")) color="#e67e22";
+      todayRecords.innerHTML+=`<span style="border-left-color:${color}">${r.status}：${r.time}（${r.company}）</span>`;
     });
-    todayRecords.innerHTML = htmlContent;
-  } catch {
-    todayRecords.innerHTML = "今日打卡紀錄：讀取失敗";
+  }catch{
+    todayRecords.innerHTML="今日打卡紀錄：讀取失敗";
   }
 }
 
