@@ -115,14 +115,25 @@ setInterval(updateDateTime,1000);
 updateDateTime();
 
 /* ===== IP ===== */
-async function preloadIP(){
-  try{
-    const res=await fetch("https://api.ipify.org?format=json");
-    const data=await res.json();
+/* ===== IP 設定 ===== */
+// 請將此處改成您實際的公司公網 IP
+const COMPANY_IPS = ["111.222.333.444", "123.123.123.123"]; 
+let cachedIP = "";
+let isCompanyNetwork = false;
+
+async function preloadIP() {
+  try {
+    const res = await fetch("https://api.ipify.org?format=json");
+    const data = await res.json();
     cachedIP = data.ip;
-  }catch{}
+    // 檢查當前 IP 是否在公司 IP 清單中
+    isCompanyNetwork = COMPANY_IPS.includes(cachedIP);
+  } catch (err) {
+    console.error("IP 取得失敗", err);
+  }
 }
-function getIP(){
+
+function getIP() {
   return cachedIP || "";
 }
 
@@ -167,7 +178,6 @@ async function initUser(){
 }
 
 /* ===== 狀態 ===== */
-/* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
   // 修改：先確認 IP 是否已載入
   if (!cachedIP) {
@@ -187,11 +197,11 @@ async function updateStatus(forceRefresh = false) {
     return;
   }
 
+  // 準備顯示文字（若為公司網路則加上標籤）
+  const networkLabel = isCompanyNetwork ? " [公司網路]" : "";
+
   try {
-    const res = await fetch(
-      `${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${getIP()}`
-    );
-    
+    const res = await fetch(`${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${getIP()}`);
     const data = await res.json();
     const newStatus = data.rangeStatus;
     if (!newStatus) return;
@@ -201,12 +211,12 @@ async function updateStatus(forceRefresh = false) {
 
     if (newStatus === "有效打卡區") {
       statusInfo.style.background = "#2ecc71";
-      statusInfo.textContent = "有效打卡區";
+      statusInfo.textContent = "有效打卡區" + networkLabel; // 顯示公司網路標籤
       setButtonsLock(false, "上班", "下班");
     } else {
       statusInfo.style.background = "#e74c3c";
       const distText = data.distance ? ` (${data.distance} 公尺)` : "";
-      statusInfo.textContent = "無效打卡區" + distText;
+      statusInfo.textContent = "無效打卡區" + distText + networkLabel;
 
       if (isManager) {
         setButtonsLock(false, "上班 (主管)", "下班 (主管)");
@@ -214,9 +224,7 @@ async function updateStatus(forceRefresh = false) {
         setButtonsLock(true, "上班", "下班");
       }
     }
-
     statusLoaded = true;
-
   } catch (err) {
     console.warn("狀態更新失敗:", err);
   }
