@@ -170,7 +170,7 @@ async function initUser(){
 async function updateStatus(forceRefresh = false) {
   // 修改：先確認 IP 是否已載入
   if (!cachedIP) {
-    statusInfo.textContent = "IP 取得中…";
+    statusInfo.textContent = "正在檢查網路狀態...";
     statusInfo.style.background = "#95a5a6";
     setButtonsLock(true, "同步中...", "同步中...");
     statusLoaded = false;
