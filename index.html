@@ -375,36 +375,63 @@ document.getElementById("btnApprove").onclick = () => {
   window.location.href = "https://script.google.com/macros/s/AKfycbwe5O6ktoaMPNsbT-U8kyruMisF4pd9ezoEsW07ofMP4wKzj4veHhjsc9-cmeddUU9mgQ/exec";
 };
 
-/* ===== 載入 ===== */
+/* ===== 優化後的初始化邏輯 ===== */
 window.onload = async () => {
   statusInfo.textContent = "系統初始化中…";
-  statusInfo.style.background = "#95a5a6";
-  setButtonsLock(true, "同步中...", "同步中...");
-
+  
   try {
-    // 1. 先抓 IP
-    await preloadIP();
-    
-    // 2. 初始化 LIFF 與其他資料
-    await initUser();
+    // 1. 同時啟動所有非同步任務，不互相等待
+    const promises = [
+      preloadIP(),          // IP 抓取
+      initUser(),           // LIFF 初始化
+      loadManagers()        // 讀取主管名單
+    ];
+
+    // 2. 啟動 GPS (使用 getCurrentPosition 快速取得首次位置，隨後接手 watchPosition)
+    const gpsPromise = new Promise((resolve) => {
+      if (!navigator.geolocation) resolve();
+      navigator.geolocation.getCurrentPosition(
+        pos => { updateGPSData(pos); resolve(); },
+        () => resolve(), // 失敗也繼續
+        { enableHighAccuracy: true, timeout: 5000 }
+      );
+      initGPSWatcher(); // 啟動持續監聽
+    });
+    promises.push(gpsPromise);
+
+    // 3. 等待最關鍵的項目完成
+    await Promise.all(promises);
     dataReady = true;
 
-    // 3. 同步啟動 GPS 監聽
-    initGPSWatcher();
-
-    await Promise.all([
-      updateTodayRecords(),
-      loadManagers()
-    ]);
-    
-    // 4. 若 GPS 已經就緒，則進行第一次狀態檢查
+    // 4. 初始化完成後的 UI 更新
+    updateTodayRecords();
     if(lastGPS) updateStatus(true);
+    else statusInfo.textContent = "請開啟定位權限";
 
   } catch (error) {
     console.error("初始化失敗", error);
-    statusInfo.textContent = "初始化失敗";
   }
 };
+
+// 抽取 GPS 資料更新邏輯，方便重用
+function updateGPSData(pos) {
+  gpsAccuracy = pos.coords.accuracy;
+  lastGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+}
+
+// 修改 initGPSWatcher 呼叫 updateGPSData
+function initGPSWatcher(){
+  if(!navigator.geolocation) return;
+  navigator.geolocation.watchPosition(
+    pos => {
+      const isFirst = !lastGPS;
+      updateGPSData(pos);
+      updateStatus(isFirst); 
+    },
+    err => console.warn("GPS錯誤:", err),
+    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 } // maximumAge: 0 確保取得即時位置
+  );
+}
 </script>
 </body>
 </html>
