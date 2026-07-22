@@ -56,6 +56,63 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
   <button id="btnApprove">查看 | 簽核</button>
 </div>
  
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>智能打卡系統</title>
+<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+<style>
+body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
+.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
+#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
+#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
+#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
+.buttons-container {display:flex;gap:15px;width:100%;}
+.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
+
+/* 🚀 優化點：更改按鈕顏色（上班：橘色 / 下班：藍色） */
+#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
+#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
+
+button:disabled {opacity:0.5;cursor:not-allowed;}
+#todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
+#todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
+
+/* 主管審批按鈕 */
+#btnApprove {
+    margin-top:10px;
+    padding:12px 20px;
+    font-size:18px;
+    font-weight:bold;
+    border-radius:10px;
+    background:linear-gradient(145deg,#8e44ad,#663399);
+    color:white;
+    display:none;
+    width:100%;
+    cursor:pointer;
+    border:none;
+}
+#btnApprove:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+</style>
+</head>
+<body>
+<div class="card">
+  <div id="userInfo">載入使用者資訊中...</div>
+  <div id="statusInfo">定位確認中…</div>
+  <div id="dateTime">載入中…</div>
+  <div class="buttons-container">
+    <button id="btnStart" disabled>定位中…</button>
+    <button id="btnEnd" disabled>定位中…</button>
+  </div>
+  <div id="todayRecords">今日打卡紀錄（點擊更新）</div>
+  <button id="btnApprove">查看 | 簽核</button>
+</div>
 <script>
 const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
 
@@ -69,6 +126,7 @@ let lastGPS = null;
 let gpsAccuracy = null;
 let cachedIP = "";
 let lastRangeStatus = null;
+let ipChecked = false; // 新增：記錄 IP 是否已經匹配驗證過
 
 const btnStart=document.getElementById("btnStart");
 const btnEnd=document.getElementById("btnEnd");
@@ -120,40 +178,36 @@ async function preloadIP(){
     const res=await fetch("https://api.ipify.org?format=json");
     const data=await res.json();
     cachedIP = data.ip;
-  }catch{}
+  }catch(err){
+    console.warn("IP 取得失敗", err);
+  }
 }
 function getIP(){
   return cachedIP || "";
-}
-
-/* ===== GPS 資料更新邏輯 ===== */
-function updateGPSData(pos) {
-  gpsAccuracy = pos.coords.accuracy;
-  lastGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
 }
 
 /* ===== GPS ===== */
 function initGPSWatcher(){
   if(!navigator.geolocation) return;
 
-  // 取得首次定位（非阻塞）
-  navigator.geolocation.getCurrentPosition(
-    pos => { updateGPSData(pos); updateStatus(); },
-    err => console.warn("GPS錯誤:", err),
-    { enableHighAccuracy: true, timeout: 5000 }
-  );
-
-  // 持續監聽位置變動
   navigator.geolocation.watchPosition(
     pos=>{
       const isFirstLocation = (lastGPS === null); 
-      updateGPSData(pos);
-      updateStatus(isFirstLocation); 
+      gpsAccuracy = pos.coords.accuracy;
+      lastGPS = {
+        lat: pos.coords.latitude,
+        lng: pos.coords.longitude
+      };
+      
+      // 如果 IP 已經驗證過且為有效，則不需要每次 GPS 更新都覆蓋狀態
+      if (!ipChecked) {
+        updateStatus(isFirstLocation); 
+      }
     },
     err=>console.warn("GPS錯誤:",err),
     {
       enableHighAccuracy:true,
-      maximumAge:0,
+      maximumAge:3000,
       timeout:5000
     }
   );
@@ -174,46 +228,51 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 ===== */
+/* ===== 狀態 (改為優先檢查 IP) ===== */
 async function updateStatus(forceRefresh = false) {
+  statusInfo.textContent = "IP與定位檢核中…";
+  statusInfo.style.background = "#95a5a6";
+  setButtonsLock(true, "檢核中…", "檢核中…");
+
+  // 1. 確保 IP 已經讀取完畢
   if (!cachedIP) {
-    statusInfo.textContent = "正在檢查網路狀態...";
-    statusInfo.style.background = "#95a5a6";
-    setButtonsLock(true, "同步中...", "同步中...");
-    statusLoaded = false;
-    return;
-  }
-
-  // 優先判斷固定 IP
-  if (cachedIP === "你的公司固定IP") {
-    lastRangeStatus = "有效打卡區";
-    statusInfo.style.background = "#2ecc71";
-    statusInfo.textContent = "有效打卡區 (IP連線)";
-    setButtonsLock(false, "上班", "下班");
-    statusLoaded = true;
-    return;
-  }
-
-  // 若 IP 不符合，檢查 GPS
-  if (!lastGPS) {
-    statusInfo.textContent = "定位中…";
-    statusInfo.style.background = "#95a5a6";
-    setButtonsLock(true, "定位中…", "定位中…");
-    statusLoaded = false;
-    return;
+    await preloadIP();
   }
 
   try {
-    const res = await fetch(
-      `${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${getIP()}`
-    );
+    // 2. 先帶入 IP 與現有 GPS 進行後端檢核 (若 GPS 尚未取得則傳空值或 0)
+    const lat = lastGPS ? lastGPS.lat : "";
+    const lng = lastGPS ? lastGPS.lng : "";
     
+    const res = await fetch(
+      `${API_ENDPOINT}?action=check&lat=${lat}&lng=${lng}&ip=${getIP()}`
+    );
+
     const data = await res.json();
     const newStatus = data.rangeStatus;
     if (!newStatus) return;
 
     if (!forceRefresh && newStatus === lastRangeStatus) return;
     lastRangeStatus = newStatus;
+
+    // 3. 判斷：如果 IP 匹配導致後端判定為「有效打卡區」，直接顯示
+    if (newStatus === "有效打卡區") {
+      ipChecked = true; // 標記 IP 已成功匹配有效打卡區
+      statusInfo.style.background = "#2ecc71";
+      statusInfo.textContent = "有效打卡區 (IP匹配)";
+      setButtonsLock(false, "上班", "下班");
+      statusLoaded = true;
+      return;
+    }
+
+    // 若 IP 未匹配，則退回原本的 GPS 判定邏輯
+    if (!lastGPS) {
+      statusInfo.textContent = "IP不符，等待GPS定位中…";
+      statusInfo.style.background = "#95a5a6";
+      setButtonsLock(true, "定位中…", "定位中…");
+      statusLoaded = false;
+      return;
+    }
 
     if (newStatus === "有效打卡區") {
       statusInfo.style.background = "#2ecc71";
@@ -306,7 +365,6 @@ async function sendSelfMessage(record){
       }
     }]);
     await new Promise(r => setTimeout(r, 800));
-    console.log("訊息已送出");
   }catch(err){
     console.error("LIFF 訊息傳送失敗:", err);
   }
@@ -344,7 +402,7 @@ async function clockInOut(status){
   try{
     const res = await fetch(API_ENDPOINT, {
       method:"POST",
-      body: JSON.stringify({userId,userName,ip:getIP(),gps:lastGPS || {lat:0, lng:0},status})
+      body: JSON.stringify({userId, userName, ip:getIP(), gps:lastGPS || {lat:0, lng:0}, status})
     });
 
     const data = await res.json();
@@ -387,28 +445,27 @@ document.getElementById("btnApprove").onclick = () => {
   window.location.href = "https://script.google.com/macros/s/AKfycbwe5O6ktoaMPNsbT-U8kyruMisF4pd9ezoEsW07ofMP4wKzj4veHhjsc9-cmeddUU9mgQ/exec";
 };
 
-/* ===== 初始化邏輯 ===== */
+/* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "系統初始化中…";
-  
-  try {
-    // 1. 核心基礎設施平行讀取 (不包含 GPS，大幅縮短等待時間)
-    await Promise.all([
-      preloadIP(),          // IP 抓取
-      initUser(),           // LIFF 初始化 (LINE 姓名)
-      loadManagers()        // 讀取主管名單
-    ]);
+  statusInfo.textContent = "初始化中…";
+  statusInfo.style.background = "#95a5a6";
+  setButtonsLock(true, "同步中...", "同步中...");
 
+  // 同步啟動 IP 預載與 GPS 監聽
+  initGPSWatcher();
+  await preloadIP();
+
+  try {
+    await initUser();
     dataReady = true;
 
-    // 2. 立即嘗試更新狀態（如果剛好抓到公司 IP 就會秒開打卡區）
-    updateStatus(true);
-
-    // 3. 背景啟動 GPS 監聽與定位，不阻塞畫面渲染
-    initGPSWatcher();
-
-    // 4. 非同步載入今日紀錄
-    updateTodayRecords();
+    await Promise.all([
+      updateTodayRecords(),
+      loadManagers()
+    ]);
+    
+    // 頁面就緒後立刻進行狀態檢查（此時會優先以 IP 進行判斷）
+    await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
@@ -417,3 +474,4 @@ window.onload = async () => {
 </script>
 </body>
 </html>
+
