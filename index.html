@@ -126,6 +126,12 @@ function getIP(){
   return cachedIP || "";
 }
 
+/* ===== GPS 資料更新邏輯 ===== */
+function updateGPSData(pos) {
+  gpsAccuracy = pos.coords.accuracy;
+  lastGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+}
+
 /* ===== GPS ===== */
 function initGPSWatcher(){
   if(!navigator.geolocation) return;
@@ -133,19 +139,13 @@ function initGPSWatcher(){
   navigator.geolocation.watchPosition(
     pos=>{
       const isFirstLocation = (lastGPS === null); 
-      gpsAccuracy = pos.coords.accuracy;
-      lastGPS = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      };
-      
-      // 位置改變時，自動刷新定位打卡區狀態
+      updateGPSData(pos);
       updateStatus(isFirstLocation); 
     },
     err=>console.warn("GPS錯誤:",err),
     {
       enableHighAccuracy:true,
-      maximumAge:3000,
+      maximumAge:0,
       timeout:5000
     }
   );
@@ -168,7 +168,6 @@ async function initUser(){
 
 /* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
-  // 修改：先確認 IP 是否已載入
   if (!cachedIP) {
     statusInfo.textContent = "正在檢查網路狀態...";
     statusInfo.style.background = "#95a5a6";
@@ -177,7 +176,6 @@ async function updateStatus(forceRefresh = false) {
     return;
   }
 
-  // 再確認 GPS
   if (!lastGPS) {
     statusInfo.textContent = "定位中…";
     statusInfo.style.background = "#95a5a6";
@@ -246,7 +244,7 @@ async function updateTodayRecords(){
   }
 }
 
-/* ===== LINE 訊息 (回復顏色維持不變) ===== */
+/* ===== LINE 訊息 ===== */
 async function sendSelfMessage(record){
   if(!liff.isInClient()) return;
 
@@ -380,58 +378,40 @@ window.onload = async () => {
   statusInfo.textContent = "系統初始化中…";
   
   try {
-    // 1. 同時啟動所有非同步任務，不互相等待
+    // 1. 同時啟動：LIFF 初始化 (取得姓名)、IP 抓取、主管名單讀取
     const promises = [
       preloadIP(),          // IP 抓取
-      initUser(),           // LIFF 初始化
+      initUser(),           // LIFF 初始化 (LINE 姓名)
       loadManagers()        // 讀取主管名單
     ];
 
-    // 2. 啟動 GPS (使用 getCurrentPosition 快速取得首次位置，隨後接手 watchPosition)
+    // 2. 同步啟動 GPS 快速定位
     const gpsPromise = new Promise((resolve) => {
       if (!navigator.geolocation) resolve();
       navigator.geolocation.getCurrentPosition(
         pos => { updateGPSData(pos); resolve(); },
-        () => resolve(), // 失敗也繼續
+        () => resolve(), 
         { enableHighAccuracy: true, timeout: 5000 }
       );
       initGPSWatcher(); // 啟動持續監聽
     });
     promises.push(gpsPromise);
 
-    // 3. 等待最關鍵的項目完成
+    // 3. 等待核心必要項目 (LINE 姓名、IP、GPS) 完成即可解鎖介面互動
     await Promise.all(promises);
     dataReady = true;
 
-    // 4. 初始化完成後的 UI 更新
-    updateTodayRecords();
+    // 4. 優先更新打卡狀態與 UI，讓使用者第一時間可以打卡
     if(lastGPS) updateStatus(true);
     else statusInfo.textContent = "請開啟定位權限";
+
+    // 5. 較慢的「今日打卡紀錄」改為背景非同步執行，不阻擋畫面的可用性
+    updateTodayRecords();
 
   } catch (error) {
     console.error("初始化失敗", error);
   }
 };
-
-// 抽取 GPS 資料更新邏輯，方便重用
-function updateGPSData(pos) {
-  gpsAccuracy = pos.coords.accuracy;
-  lastGPS = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-}
-
-// 修改 initGPSWatcher 呼叫 updateGPSData
-function initGPSWatcher(){
-  if(!navigator.geolocation) return;
-  navigator.geolocation.watchPosition(
-    pos => {
-      const isFirst = !lastGPS;
-      updateGPSData(pos);
-      updateStatus(isFirst); 
-    },
-    err => console.warn("GPS錯誤:", err),
-    { enableHighAccuracy: true, maximumAge: 0, timeout: 5000 } // maximumAge: 0 確保取得即時位置
-  );
-}
 </script>
 </body>
 </html>
