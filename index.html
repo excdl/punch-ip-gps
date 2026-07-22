@@ -56,63 +56,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
   <button id="btnApprove">查看 | 簽核</button>
 </div>
  
-<!DOCTYPE html>
-<html lang="zh-TW">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>智能打卡系統</title>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<style>
-body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
-#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
-#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
-#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
-.buttons-container {display:flex;gap:15px;width:100%;}
-.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
 
-/* 🚀 優化點：更改按鈕顏色（上班：橘色 / 下班：藍色） */
-#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
-#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-
-button:disabled {opacity:0.5;cursor:not-allowed;}
-#todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
-#todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
-
-/* 主管審批按鈕 */
-#btnApprove {
-    margin-top:10px;
-    padding:12px 20px;
-    font-size:18px;
-    font-weight:bold;
-    border-radius:10px;
-    background:linear-gradient(145deg,#8e44ad,#663399);
-    color:white;
-    display:none;
-    width:100%;
-    cursor:pointer;
-    border:none;
-}
-#btnApprove:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-</style>
-</head>
-<body>
-<div class="card">
-  <div id="userInfo">載入使用者資訊中...</div>
-  <div id="statusInfo">定位確認中…</div>
-  <div id="dateTime">載入中…</div>
-  <div class="buttons-container">
-    <button id="btnStart" disabled>定位中…</button>
-    <button id="btnEnd" disabled>定位中…</button>
-  </div>
-  <div id="todayRecords">今日打卡紀錄（點擊更新）</div>
-  <button id="btnApprove">查看 | 簽核</button>
-</div>
 <script>
 const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
 
