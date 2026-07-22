@@ -70,7 +70,8 @@ let lastGPS = null;
 let gpsAccuracy = null;
 let cachedIP = "";
 let lastRangeStatus = null;
-let ipChecked = false; // 新增：記錄 IP 是否已經匹配驗證過
+let ipChecked = false;      // 記錄 IP 是否已經匹配驗證過
+let isInitializing = true; // 鎖定初始化階段，避免 watchPosition 提早觸發衝突
 
 const btnStart=document.getElementById("btnStart");
 const btnEnd=document.getElementById("btnEnd");
@@ -136,6 +137,9 @@ function initGPSWatcher(){
 
   navigator.geolocation.watchPosition(
     pos=>{
+      // 若正在初始化，略過此次回調，避免與 onload 發生衝突
+      if (isInitializing) return;
+
       const isFirstLocation = (lastGPS === null); 
       gpsAccuracy = pos.coords.accuracy;
       lastGPS = {
@@ -143,7 +147,6 @@ function initGPSWatcher(){
         lng: pos.coords.longitude
       };
       
-      // 如果 IP 已經驗證過且為有效，則不需要每次 GPS 更新都覆蓋狀態
       if (!ipChecked) {
         updateStatus(isFirstLocation); 
       }
@@ -172,19 +175,17 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 (改為優先檢查 IP) ===== */
+/* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
   statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 1. 確保 IP 已經讀取完畢
   if (!cachedIP) {
     await preloadIP();
   }
 
   try {
-    // 2. 先帶入 IP 與現有 GPS 進行後端檢核 (若 GPS 尚未取得則傳空值或 0)
     const lat = lastGPS ? lastGPS.lat : "";
     const lng = lastGPS ? lastGPS.lng : "";
     
@@ -199,9 +200,8 @@ async function updateStatus(forceRefresh = false) {
     if (!forceRefresh && newStatus === lastRangeStatus) return;
     lastRangeStatus = newStatus;
 
-    // 3. 判斷：如果 IP 匹配導致後端判定為「有效打卡區」，直接顯示
     if (newStatus === "有效打卡區") {
-      ipChecked = true; // 標記 IP 已成功匹配有效打卡區
+      ipChecked = true;
       statusInfo.style.background = "#2ecc71";
       statusInfo.textContent = "有效打卡區";
       setButtonsLock(false, "上班", "下班");
@@ -209,7 +209,6 @@ async function updateStatus(forceRefresh = false) {
       return;
     }
 
-    // 若 IP 未匹配，則退回原本的 GPS 判定邏輯
     if (!lastGPS) {
       statusInfo.textContent = "IP不符，等待GPS定位中…";
       statusInfo.style.background = "#95a5a6";
@@ -391,16 +390,19 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
+  isInitializing = true; // 鎖定初始化
   statusInfo.textContent = "初始化中…";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 同步啟動 IP 預載與 GPS 監聽
   initGPSWatcher();
-  await preloadIP();
 
   try {
-    await initUser();
+    await Promise.all([
+      preloadIP(),
+      initUser()
+    ]);
+
     dataReady = true;
 
     await Promise.all([
@@ -408,11 +410,13 @@ window.onload = async () => {
       loadManagers()
     ]);
     
-    // 頁面就緒後立刻進行狀態檢查（此時會優先以 IP 進行判斷）
+    // 初始化最後步驟：狀態檢查
     await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
+  } finally {
+    isInitializing = false; // 解除初始化鎖
   }
 };
 </script>
