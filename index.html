@@ -174,9 +174,9 @@ async function initUser(){
 
 /* ===== 狀態 (改為優先檢查 IP) ===== */
 async function updateStatus(forceRefresh = false) {
-  statusInfo.textContent = "IP與定位檢核中…";
+  statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
-  setButtonsLock(true, "檢核中…", "檢核中…");
+  setButtonsLock(true, "同步中...", "同步中...");
 
   // 1. 確保 IP 已經讀取完畢
   if (!cachedIP) {
@@ -203,7 +203,7 @@ async function updateStatus(forceRefresh = false) {
     if (newStatus === "有效打卡區") {
       ipChecked = true; // 標記 IP 已成功匹配有效打卡區
       statusInfo.style.background = "#2ecc71";
-      statusInfo.textContent = "有效打卡區 (IP匹配)";
+      statusInfo.textContent = "有效打卡區";
       setButtonsLock(false, "上班", "下班");
       statusLoaded = true;
       return;
