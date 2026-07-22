@@ -136,6 +136,14 @@ function updateGPSData(pos) {
 function initGPSWatcher(){
   if(!navigator.geolocation) return;
 
+  // 取得首次定位（非阻塞）
+  navigator.geolocation.getCurrentPosition(
+    pos => { updateGPSData(pos); updateStatus(); },
+    err => console.warn("GPS錯誤:", err),
+    { enableHighAccuracy: true, timeout: 5000 }
+  );
+
+  // 持續監聽位置變動
   navigator.geolocation.watchPosition(
     pos=>{
       const isFirstLocation = (lastGPS === null); 
@@ -166,7 +174,7 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 (修改順序：先判斷 IP 是否符合，符合即先顯示有效打卡區) ===== */
+/* ===== 狀態 ===== */
 async function updateStatus(forceRefresh = false) {
   if (!cachedIP) {
     statusInfo.textContent = "正在檢查網路狀態...";
@@ -176,7 +184,7 @@ async function updateStatus(forceRefresh = false) {
     return;
   }
 
-  // 修改：優先判斷固定 IP (例如公司固定 IP) 如果符合，直接判定有效打卡區，不需等待 GPS
+  // 優先判斷固定 IP
   if (cachedIP === "你的公司固定IP") {
     lastRangeStatus = "有效打卡區";
     statusInfo.style.background = "#2ecc71";
@@ -186,7 +194,7 @@ async function updateStatus(forceRefresh = false) {
     return;
   }
 
-  // 若 IP 不符合，則繼續原本的 GPS 定位檢查
+  // 若 IP 不符合，檢查 GPS
   if (!lastGPS) {
     statusInfo.textContent = "定位中…";
     statusInfo.style.background = "#95a5a6";
@@ -384,30 +392,22 @@ window.onload = async () => {
   statusInfo.textContent = "系統初始化中…";
   
   try {
-    const promises = [
+    // 1. 核心基礎設施平行讀取 (不包含 GPS，大幅縮短等待時間)
+    await Promise.all([
       preloadIP(),          // IP 抓取
       initUser(),           // LIFF 初始化 (LINE 姓名)
       loadManagers()        // 讀取主管名單
-    ];
+    ]);
 
-    const gpsPromise = new Promise((resolve) => {
-      if (!navigator.geolocation) resolve();
-      navigator.geolocation.getCurrentPosition(
-        pos => { updateGPSData(pos); resolve(); },
-        () => resolve(), 
-        { enableHighAccuracy: true, timeout: 5000 }
-      );
-      initGPSWatcher(); 
-    });
-    promises.push(gpsPromise);
-
-    await Promise.all(promises);
     dataReady = true;
 
-    // 優先更新狀態 (此時若 IP 符合會直接顯示有效打卡區)
+    // 2. 立即嘗試更新狀態（如果剛好抓到公司 IP 就會秒開打卡區）
     updateStatus(true);
 
-    // 非同步載入今日紀錄
+    // 3. 背景啟動 GPS 監聽與定位，不阻塞畫面渲染
+    initGPSWatcher();
+
+    // 4. 非同步載入今日紀錄
     updateTodayRecords();
 
   } catch (error) {
