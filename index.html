@@ -371,29 +371,33 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "正在檢查網路狀態...";
+  statusInfo.textContent = "正在載入使用者資料...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 先行讀取 IP 與初始化 GPS 監聽
-  await preloadIP();
+  // 1. 背景非同步預抓 IP 與啟動 GPS 監聽（不使用 await 阻塞主執行緒）
+  preloadIP();
   initGPSWatcher();
 
   try {
-    // 同時進行 LIFF 使用者初始化與 IP 預先載入準備
+    // 2. 優先初始化 LIFF 使用者並標記資料就緒，讓 UI 盡快顯示
     await initUser();
     dataReady = true;
 
-    // 將資料載入改為完全平行處理，大幅縮短等待時間
+    // 3. 平行載入今日打卡紀錄與主管權限
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
-    if(lastGPS) updateStatus(true);
+    // 如果此時 GPS 已經有快取座標，立即更新狀態
+    if(lastGPS) {
+      updateStatus(true);
+    }
 
   } catch (error) {
     console.error("初始化失敗", error);
+    statusInfo.textContent = "初始化失敗，請重新整理";
   }
 };
 </script>
