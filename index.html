@@ -7,43 +7,29 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
-body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
-#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
-#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
-#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
-.buttons-container {display:flex;gap:15px;width:100%;}
-.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
-
-/* 🚀 優化點：更改按鈕顏色（上班：橘色 / 下班：藍色） */
-#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
-#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-
-button:disabled {opacity:0.5;cursor:not-allowed;}
-#todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
-#todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
-
-/* 主管審批按鈕 */
-#btnApprove {
-    margin-top:10px;
-    padding:12px 20px;
-    font-size:18px;
-    font-weight:bold;
-    border-radius:10px;
-    background:linear-gradient(145deg,#8e44ad,#663399);
-    color:white;
-    display:none;
-    width:100%;
-    cursor:pointer;
-    border:none;
-}
-#btnApprove:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
+  body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
+  .card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
+  #userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
+  #dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
+  #statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
+  .buttons-container {display:flex;gap:15px;width:100%;}
+  .buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
+  
+  /* 按鈕顏色（上班：橘色 / 下班：藍色） */
+  #btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
+  #btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
+  button:disabled {opacity:0.5;cursor:not-allowed;}
+  
+  #todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
+  #todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
+  
+  /* 主管審批按鈕 */
+  #btnApprove {margin-top:10px; padding:12px 20px; font-size:18px; font-weight:bold; border-radius:10px; background:linear-gradient(145deg,#8e44ad,#663399); color:white; display:none; width:100%; cursor:pointer; border:none; }
+  #btnApprove:hover {transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
 </style>
 </head>
 <body>
+
 <div class="card">
   <div id="userInfo">載入使用者資訊中...</div>
   <div id="statusInfo">定位確認中…</div>
@@ -55,7 +41,6 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
   <div id="todayRecords">今日打卡紀錄（點擊更新）</div>
   <button id="btnApprove">查看 | 簽核</button>
 </div>
- 
 
 <script>
 const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
@@ -173,6 +158,7 @@ async function updateStatus(forceRefresh = false) {
   if (!lastGPS) {
     statusInfo.textContent = "定位中…";
     statusInfo.style.background = "#95a5a6";
+    statusInfo.style.display = "block";
     setButtonsLock(true, "定位中…", "定位中…");
     statusLoaded = false;
     return;
@@ -193,11 +179,11 @@ async function updateStatus(forceRefresh = false) {
     if (newStatus === "有效打卡區") {
       statusInfo.style.background = "#2ecc71";
       statusInfo.textContent = "有效打卡區";
+      statusInfo.style.display = "block"; // 顯示有效打卡提示
       setButtonsLock(false, "上班", "下班");
     } else {
-      statusInfo.style.background = "#e74c3c";
-      const distText = data.distance ? ` (${data.distance} 公尺)` : "";
-      statusInfo.textContent = "無效打卡區" + distText;
+      // 🚀 當為無效打卡區時，直接隱藏提示列
+      statusInfo.style.display = "none"; 
 
       if (isManager) {
         setButtonsLock(false, "上班 (主管)", "下班 (主管)");
@@ -213,7 +199,7 @@ async function updateStatus(forceRefresh = false) {
   }
 }
 
-/* ===== 今日紀錄（已優化效能） ===== */
+/* ===== 今日紀錄 ===== */
 async function updateTodayRecords(){
   todayRecords.innerHTML="載入中...";
   try{
@@ -225,7 +211,6 @@ async function updateTodayRecords(){
       return;
     }
 
-    // 使用陣列一次組合所有 HTML，避免在迴圈中頻繁操作 DOM 造成效能低落
     let htmlContent = "今日打卡紀錄：<br>";
     const recordsHTML = data.map(r => {
       let color = "#3498db";
@@ -371,29 +356,25 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "正在載入使用者資料...";
+  statusInfo.textContent = "正在讀取 IP 與使用者資料...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 1. 背景非同步預抓 IP 與啟動 GPS 監聽（不使用 await 阻塞主執行緒）
-  preloadIP();
-  initGPSWatcher();
-
   try {
-    // 2. 優先初始化 LIFF 使用者並標記資料就緒，讓 UI 盡快顯示
+    // 1. 優先等待 IP 讀取完成
+    await preloadIP();
+
+    // 2. 初始化 LIFF 使用者並平行載入其他資料
     await initUser();
     dataReady = true;
 
-    // 3. 平行載入今日打卡紀錄與主管權限
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
-    
-    // 如果此時 GPS 已經有快取座標，立即更新狀態
-    if(lastGPS) {
-      updateStatus(true);
-    }
+
+    // 3. 基礎畫面就緒後，再啟動 GPS 監聽
+    initGPSWatcher();
 
   } catch (error) {
     console.error("初始化失敗", error);
@@ -401,6 +382,7 @@ window.onload = async () => {
   }
 };
 </script>
+
 </body>
 </html>
 
