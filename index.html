@@ -115,14 +115,22 @@ function updateDateTime(){
 setInterval(updateDateTime,1000);
 updateDateTime();
 
-/* ===== IP ===== */
+/* ===== IP (改為背景執行並加入 3 秒逾時，絕不卡死畫面) ===== */
 async function preloadIP(){
-  try{
-    const res=await fetch("https://api.ipify.org?format=json");
-    const data=await res.json();
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000); // 最多等 3 秒
+
+    const res = await fetch("https://api.ipify.org?format=json", {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+
+    const data = await res.json();
     cachedIP = data.ip;
-  }catch(err){
-    console.warn("IP 讀取失敗:", err);
+  } catch (err) {
+    console.warn("IP 讀取逾時或失敗，使用空值繼續:", err);
+    cachedIP = "";
   }
 }
 function getIP(){
@@ -225,7 +233,6 @@ async function updateTodayRecords(){
       return;
     }
 
-    // 使用陣列一次組合所有 HTML，避免在迴圈中頻繁操作 DOM 造成效能低落
     let htmlContent = "今日打卡紀錄：<br>";
     const recordsHTML = data.map(r => {
       let color = "#3498db";
@@ -375,16 +382,15 @@ window.onload = async () => {
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 先行讀取 IP 與初始化 GPS 監聽
-  await preloadIP();
+  // 將 IP 讀取改為不使用 await 阻擋，讓它在背景非同步執行
+  preloadIP();
   initGPSWatcher();
 
   try {
-    // 同時進行 LIFF 使用者初始化與 IP 預先載入準備
+    // 優先執行 LIFF 使用者初始化與主要資料載入
     await initUser();
     dataReady = true;
 
-    // 將資料載入改為完全平行處理，大幅縮短等待時間
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
@@ -396,6 +402,7 @@ window.onload = async () => {
     console.error("初始化失敗", error);
   }
 };
+
 </script>
 </body>
 </html>
