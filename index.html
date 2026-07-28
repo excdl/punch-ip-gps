@@ -7,29 +7,43 @@
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
-  body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-  .card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
-  #userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
-  #dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
-  #statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
-  .buttons-container {display:flex;gap:15px;width:100%;}
-  .buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
-  
-  /* 按鈕顏色（上班：橘色 / 下班：藍色） */
-  #btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
-  #btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-  button:disabled {opacity:0.5;cursor:not-allowed;}
-  
-  #todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
-  #todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
-  
-  /* 主管審批按鈕 */
-  #btnApprove {margin-top:10px; padding:12px 20px; font-size:18px; font-weight:bold; border-radius:10px; background:linear-gradient(145deg,#8e44ad,#663399); color:white; display:none; width:100%; cursor:pointer; border:none; }
-  #btnApprove:hover {transform: translateY(-2px); box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
+body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
+.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
+#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
+#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
+#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
+.buttons-container {display:flex;gap:15px;width:100%;}
+.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
+
+/* 🚀 優化點：更改按鈕顏色（上班：橘色 / 下班：藍色） */
+#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
+#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
+
+button:disabled {opacity:0.5;cursor:not-allowed;}
+#todayRecords {width:100%;background:#fafafa;border-radius:14px;padding:15px;border:1px solid #ddd;font-size:18px;text-align:left;}
+#todayRecords span {display:block;margin-bottom:5px;padding-left:5px;border-left:3px solid #3498db;}
+
+/* 主管審批按鈕 */
+#btnApprove {
+    margin-top:10px;
+    padding:12px 20px;
+    font-size:18px;
+    font-weight:bold;
+    border-radius:10px;
+    background:linear-gradient(145deg,#8e44ad,#663399);
+    color:white;
+    display:none;
+    width:100%;
+    cursor:pointer;
+    border:none;
+}
+#btnApprove:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
 </style>
 </head>
 <body>
-
 <div class="card">
   <div id="userInfo">載入使用者資訊中...</div>
   <div id="statusInfo">定位確認中…</div>
@@ -41,6 +55,7 @@
   <div id="todayRecords">今日打卡紀錄（點擊更新）</div>
   <button id="btnApprove">查看 | 簽核</button>
 </div>
+ 
 
 <script>
 const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
@@ -153,20 +168,23 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 ===== */
+/* ===== 狀態 (改為支援僅靠 IP 快速判斷，不強制等待 lastGPS) ===== */
 async function updateStatus(forceRefresh = false) {
-  if (!lastGPS) {
-    statusInfo.textContent = "定位中…";
+  // 如果連 IP 都還沒抓到，才顯示初始化提示
+  if (!cachedIP && !lastGPS) {
+    statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
-    statusInfo.style.display = "block";
-    setButtonsLock(true, "定位中…", "定位中…");
+    setButtonsLock(true, "載入中...", "載入中...");
     statusLoaded = false;
     return;
   }
 
   try {
+    const lat = lastGPS ? lastGPS.lat : "";
+    const lng = lastGPS ? lastGPS.lng : "";
+    
     const res = await fetch(
-      `${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${encodeURIComponent(getIP())}`
+      `${API_ENDPOINT}?action=check&lat=${lat}&lng=${lng}&ip=${encodeURIComponent(getIP())}`
     );
 
     const data = await res.json();
@@ -179,11 +197,11 @@ async function updateStatus(forceRefresh = false) {
     if (newStatus === "有效打卡區") {
       statusInfo.style.background = "#2ecc71";
       statusInfo.textContent = "有效打卡區";
-      statusInfo.style.display = "block"; // 顯示有效打卡提示
       setButtonsLock(false, "上班", "下班");
     } else {
-      // 🚀 當為無效打卡區時，直接隱藏提示列
-      statusInfo.style.display = "none"; 
+      statusInfo.style.background = "#e74c3c";
+      const distText = data.distance ? ` (${data.distance} 公尺)` : "";
+      statusInfo.textContent = "無效打卡區" + distText;
 
       if (isManager) {
         setButtonsLock(false, "上班 (主管)", "下班 (主管)");
@@ -199,7 +217,7 @@ async function updateStatus(forceRefresh = false) {
   }
 }
 
-/* ===== 今日紀錄 ===== */
+/* ===== 今日紀錄（已優化效能） ===== */
 async function updateTodayRecords(){
   todayRecords.innerHTML="載入中...";
   try{
@@ -304,14 +322,15 @@ async function clockInOut(status){
   },1000);
 
   try{
-    if(!lastGPS){
-      Swal.fire({icon:"warning",title:"定位尚未完成",timer:1500,showConfirmButton:false});
-      return;
-    }
-
     const res = await fetch(API_ENDPOINT, {
       method:"POST",
-      body: JSON.stringify({userId, userName, ip: getIP(), gps: lastGPS, status})
+      body: JSON.stringify({
+        userId, 
+        userName, 
+        ip: getIP(), 
+        gps: lastGPS || { lat: "", lng: "" }, 
+        status
+      })
     });
 
     const data = await res.json();
@@ -335,7 +354,7 @@ async function clockInOut(status){
 
       sendSelfMessage(record);
       updateTodayRecords();
-      updateStatus();
+      updateStatus(true);
     }
 
   }catch(err){
@@ -356,35 +375,36 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "正在讀取 IP 與使用者資料...";
+  statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  try {
-    // 1. 優先等待 IP 讀取完成
-    await preloadIP();
+  // 1. 先行抓取 IP 與初始化 GPS 背景監聽
+  await preloadIP();
+  initGPSWatcher();
 
-    // 2. 初始化 LIFF 使用者並平行載入其他資料
+  try {
+    // 2. 初始化 LIFF 使用者
     await initUser();
     dataReady = true;
 
+    // 3. 平行讀取今日紀錄與主管權限
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
-
-    // 3. 基礎畫面就緒後，再啟動 GPS 監聽
-    initGPSWatcher();
+    
+    // 4. [關鍵修改] 即使還沒有 GPS 座標，也先用 IP 進行第一次狀態檢查解除卡頓
+    await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
-    statusInfo.textContent = "初始化失敗，請重新整理";
   }
 };
 </script>
-
 </body>
 </html>
+
 
 
 
