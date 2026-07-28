@@ -55,7 +55,6 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
   <div id="todayRecords">今日打卡紀錄（點擊更新）</div>
   <button id="btnApprove">查看 | 簽核</button>
 </div>
- 
 
 <script>
 const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
@@ -65,9 +64,13 @@ let statusLoaded=false;
 let MANAGERS = [];
 let isManager = false;
 
-/* ===== GPS 即時系統 ===== */
-let lastGPS = null;
-let gpsAccuracy = null;
+/* ===== 允許打卡的 IP 清單（可依需求自行增減） ===== */
+const ALLOWED_IPS = [
+  "220.134.112.245",  // 範例公司外網 IP 1
+  "27.242.70.111"    // 範例公司外網 IP 2
+];
+
+
 let cachedIP = "";
 let lastRangeStatus = null;
 
@@ -115,7 +118,7 @@ function updateDateTime(){
 setInterval(updateDateTime,1000);
 updateDateTime();
 
-/* ===== IP ===== */
+/* ===== IP 讀取 ===== */
 async function preloadIP(){
   try{
     const res=await fetch("https://api.ipify.org?format=json");
@@ -123,35 +126,11 @@ async function preloadIP(){
     cachedIP = data.ip;
   }catch(err){
     console.warn("IP 讀取失敗:", err);
+    cachedIP = "";
   }
 }
 function getIP(){
   return cachedIP || "";
-}
-
-/* ===== GPS ===== */
-function initGPSWatcher(){
-  if(!navigator.geolocation) return;
-
-  navigator.geolocation.watchPosition(
-    pos=>{
-      const isFirstLocation = (lastGPS === null); 
-      gpsAccuracy = pos.coords.accuracy;
-      lastGPS = {
-        lat: pos.coords.latitude,
-        lng: pos.coords.longitude
-      };
-      
-      // 位置改變時，自動刷新定位打卡區狀態
-      updateStatus(isFirstLocation); 
-    },
-    err=>console.warn("GPS錯誤:",err),
-    {
-      enableHighAccuracy:true,
-      maximumAge:3000,
-      timeout:5000
-    }
-  );
 }
 
 /* ===== LIFF ===== */
@@ -169,49 +148,39 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 ===== */
-async function updateStatus(forceRefresh = false) {
-  if (!lastGPS) {
-    statusInfo.textContent = "定位中…";
+/* ===== 狀態（直接前端核對多 IP） ===== */
+async function updateStatus() {
+  if (!cachedIP) {
+    statusInfo.textContent = "IP 檢測中…";
     statusInfo.style.background = "#95a5a6";
-    setButtonsLock(true, "定位中…", "定位中…");
+    setButtonsLock(true, "IP 檢測中…", "IP 檢測中…");
     statusLoaded = false;
     return;
   }
 
-  try {
-    const res = await fetch(
-      `${API_ENDPOINT}?action=check&lat=${lastGPS.lat}&lng=${lastGPS.lng}&ip=${encodeURIComponent(getIP())}`
-    );
+  // 檢查目前取得的 IP 是否存在於 ALLOWED_IPS 陣列中
+  const isValidIP = ALLOWED_IPS.includes(cachedIP);
+  const newStatus = isValidIP ? "有效打卡區" : "無效打卡區";
 
-    const data = await res.json();
-    const newStatus = data.rangeStatus;
-    if (!newStatus) return;
+  if (newStatus === lastRangeStatus) return;
+  lastRangeStatus = newStatus;
 
-    if (!forceRefresh && newStatus === lastRangeStatus) return;
-    lastRangeStatus = newStatus;
+  if (isValidIP) {
+    statusInfo.style.background = "#2ecc71";
+    statusInfo.textContent = "有效打卡區";
+    setButtonsLock(false, "上班", "下班");
+  } else {
+    statusInfo.style.background = "#e74c3c";
+    statusInfo.textContent = `無效打卡區 (IP: ${cachedIP})`;
 
-    if (newStatus === "有效打卡區") {
-      statusInfo.style.background = "#2ecc71";
-      statusInfo.textContent = "有效打卡區";
-      setButtonsLock(false, "上班", "下班");
+    if (isManager) {
+      setButtonsLock(false, "上班 (主管)", "下班 (主管)");
     } else {
-      statusInfo.style.background = "#e74c3c";
-      const distText = data.distance ? ` (${data.distance} 公尺)` : "";
-      statusInfo.textContent = "無效打卡區" + distText;
-
-      if (isManager) {
-        setButtonsLock(false, "上班 (主管)", "下班 (主管)");
-      } else {
-        setButtonsLock(true, "上班", "下班");
-      }
+      setButtonsLock(true, "上班", "下班");
     }
-
-    statusLoaded = true;
-
-  } catch (err) {
-    console.warn("狀態更新失敗:", err);
   }
+
+  statusLoaded = true;
 }
 
 /* ===== 今日紀錄 ===== */
@@ -247,7 +216,7 @@ async function sendSelfMessage(record){
   if(record.status === "下班") headerColor = "#2ecc71"; 
   if(record.rangeStatus !== "有效打卡區") headerColor = "#e67e22"; 
 
-  let reasonText = record.rangeStatus !== "有效打卡區" ? "異常原因：超出打卡區" : "";
+  let reasonText = record.rangeStatus !== "有效打卡區" ? "異常原因：IP 不符" : "";
 
   try{
     await liff.sendMessages([{
@@ -275,7 +244,7 @@ async function sendSelfMessage(record){
           contents:[
             {type:"text", text:`狀態：${record.status}`},
             {type:"text", text:`時間：${record.date} ${record.time}`},
-            {type:"text", text:`位置：${record.company}`},
+            {type:"text", text:`IP 位址：${record.ip}`},
             ...(reasonText ? [{type:"text", text: reasonText, color:"#e67e22"}] : [])
           ]
         }
@@ -291,7 +260,7 @@ async function sendSelfMessage(record){
 /* ===== 打卡 ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
-    Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
+    Swal.fire({icon:"info",title:"資料讀取中或 IP 檢測中",timer:1500,showConfirmButton:false});
     return;
   }
 
@@ -318,14 +287,16 @@ async function clockInOut(status){
   },1000);
 
   try{
-    if(!lastGPS){
-      Swal.fire({icon:"warning",title:"定位尚未完成",timer:1500,showConfirmButton:false});
-      return;
-    }
-
+    const currentIP = getIP();
     const res = await fetch(API_ENDPOINT, {
       method:"POST",
-      body: JSON.stringify({userId, userName, ip: getIP(), gps: lastGPS, status})
+      body: JSON.stringify({
+        userId, 
+        userName, 
+        ip: currentIP, 
+        rangeStatus: lastRangeStatus, 
+        status
+      })
     });
 
     const data = await res.json();
@@ -334,14 +305,14 @@ async function clockInOut(status){
     if(actuallyUpdated){
       const record = {
         userName,
-        status: data.status,
-        date: data.date,
-        time: data.time,
-        company: data.company || "未知",
-        rangeStatus: data.rangeStatus
+        status: data.status || status,
+        date: data.date || getTodayString(),
+        time: data.time || new Date().toLocaleTimeString("zh-TW", {hour12:false}),
+        ip: currentIP,
+        rangeStatus: lastRangeStatus
       };
 
-      if(data.rangeStatus === "有效打卡區"){
+      if(lastRangeStatus === "有效打卡區"){
         Swal.fire({icon:"success",title:"打卡成功",timer:2000,showConfirmButton:false});
       } else {
         Swal.fire({icon:"warning",title:"打卡無效",timer:2000,showConfirmButton:false});
@@ -370,13 +341,12 @@ document.getElementById("btnApprove").onclick = () => {
 
 /* ===== 載入 ===== */
 window.onload = async () => {
-  statusInfo.textContent = "正在檢查網路狀態...";
+  statusInfo.textContent = "正在檢查網路與 IP...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 先行讀取 IP 與初始化 GPS 監聽
+  // 先行讀取 IP
   await preloadIP();
-  initGPSWatcher();
 
   try {
     await initUser();
@@ -387,13 +357,15 @@ window.onload = async () => {
       loadManagers()
     ]);
     
-    // 如果此時 GPS 已經抓到，立即更新一次狀態檢查
-    if(lastGPS) updateStatus(true);
+    // 直接核對 IP 狀態
+    updateStatus();
 
   } catch (error) {
     console.error("初始化失敗", error);
   }
 };
+
+
 </script>
 </body>
 </html>
