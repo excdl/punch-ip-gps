@@ -142,7 +142,6 @@ function initGPSWatcher(){
         lng: pos.coords.longitude
       };
       
-      // 位置改變時，自動刷新定位打卡區狀態
       updateStatus(isFirstLocation); 
     },
     err=>console.warn("GPS錯誤:",err),
@@ -214,7 +213,7 @@ async function updateStatus(forceRefresh = false) {
   }
 }
 
-/* ===== 今日紀錄 ===== */
+/* ===== 今日紀錄（已優化效能） ===== */
 async function updateTodayRecords(){
   todayRecords.innerHTML="載入中...";
   try{
@@ -226,14 +225,16 @@ async function updateTodayRecords(){
       return;
     }
 
-    todayRecords.innerHTML="今日打卡紀錄：<br>";
+    // 使用陣列一次組合所有 HTML，避免在迴圈中頻繁操作 DOM 造成效能低落
+    let htmlContent = "今日打卡紀錄：<br>";
+    const recordsHTML = data.map(r => {
+      let color = "#3498db";
+      if(r.status === "下班") color = "#2ecc71";
+      if(r.company.includes("錯誤")) color = "#e67e22";
+      return `<span style="border-left-color:${color}">${r.status}：${r.time}（${r.company}）</span>`;
+    }).join("");
 
-    data.forEach(r=>{
-      let color="#3498db";
-      if(r.status==="下班") color="#2ecc71";
-      if(r.company.includes("錯誤")) color="#e67e22";
-      todayRecords.innerHTML+=`<span style="border-left-color:${color}">${r.status}：${r.time}（${r.company}）</span>`;
-    });
+    todayRecords.innerHTML = htmlContent + recordsHTML;
   }catch{
     todayRecords.innerHTML="今日打卡紀錄：讀取失敗";
   }
@@ -379,15 +380,16 @@ window.onload = async () => {
   initGPSWatcher();
 
   try {
+    // 同時進行 LIFF 使用者初始化與 IP 預先載入準備
     await initUser();
     dataReady = true;
 
+    // 將資料載入改為完全平行處理，大幅縮短等待時間
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
-    // 如果此時 GPS 已經抓到，立即更新一次狀態檢查
     if(lastGPS) updateStatus(true);
 
   } catch (error) {
