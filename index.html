@@ -58,7 +58,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
  
 
 <script>
-const API_ENDPOINT="https://script.google.com/macros/s/AKfycby43oYhfa-HTUwEMKg74ws-xtnPHrIglL8cRot_xyu0YlJeEIaW36Z9PSKywtRL7APj7A/exec";
+const API_ENDPOINT="https://script.google.com/macros/s/AKfycbxg8yvQpBW0WMhHheUNKLGZ4fezYSr3JpnWsUvAKKdEmxgCbJcdF4q__GWGlPqBNWhK/exec";
 
 let userId="", userName="", dataReady=false;
 let statusLoaded=false;
@@ -292,7 +292,7 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡 (已優化防卡死) ===== */
+/* ===== 打卡 ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
     Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
@@ -334,50 +334,38 @@ async function clockInOut(status){
     });
 
     const data = await res.json();
-    console.log("後台回傳結果：", data);
+    const actuallyUpdated = data.message && (data.message.includes("已更新") || data.message.includes("成功"));
 
-    // 強制清除計時器與恢復按鈕
-    clearInterval(timer);
-    btn.textContent = originalText;
-    btn.disabled = false;
+    if(actuallyUpdated){
+      const record = {
+        userName,
+        status: data.status,
+        date: data.date,
+        time: data.time,
+        company: data.company || "未知",
+        rangeStatus: data.rangeStatus
+      };
 
-    // 確保彈跳窗優先渲染，將後續動作用 setTimeout 隔開避免畫面阻塞
-    setTimeout(() => {
-      if (data && data.message) {
-        if(data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")){
-          Swal.fire({ icon: "warning", title: data.message, timer: 2000, showConfirmButton: false });
-        } else {
-          if(data.rangeStatus === "有效打卡區"){
-            Swal.fire({ icon: "success", title: "打卡成功", timer: 2000, showConfirmButton: false });
-          } else {
-            Swal.fire({ icon: "warning", title: "打卡完成（不在有效打卡區）", timer: 2000, showConfirmButton: false });
-          }
-
-          // 背景發送 LIFF 訊息，不阻塞畫面
-          const record = {
-            userName, 
-            status: data.status || status, 
-            date: data.date, 
-            time: data.time, 
-            company: data.company || "未知", 
-            rangeStatus: data.rangeStatus 
-          };
-          sendSelfMessage(record).catch(e => console.warn("背景發送訊息失敗", e));
-        }
-        updateTodayRecords();
+      if(data.rangeStatus === "有效打卡區"){
+        Swal.fire({icon:"success",title:"打卡成功",timer:2000,showConfirmButton:false});
       } else {
-        Swal.fire({icon:"error", title:"伺服器回應異常", timer:2000, showConfirmButton:false});
+        Swal.fire({icon:"warning",title:"打卡無效",timer:2000,showConfirmButton:false});
       }
-    }, 50);
+
+      sendSelfMessage(record);
+      updateTodayRecords();
+      updateStatus(true);
+    }
 
   }catch(err){
-    console.error("打卡發生錯誤：", err);
+    Swal.fire({icon:"error",title:"打卡失敗",timer:2000,showConfirmButton:false});
+  } finally {
     clearInterval(timer);
     btn.textContent = originalText;
     btn.disabled = false;
-    Swal.fire({icon:"error", title:"打卡連線失敗", timer:2000, showConfirmButton:false});
   }
 }
+
 btnStart.onclick = () => clockInOut("上班");
 btnEnd.onclick = () => clockInOut("下班");
 
@@ -416,6 +404,12 @@ window.onload = async () => {
 </script>
 </body>
 </html>
+
+
+
+
+
+
 
 
 
