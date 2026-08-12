@@ -292,7 +292,7 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡 (修正體驗版本) ===== */
+/* ===== 打卡 (完美流暢版) ===== */
 async function clockInOut(status) {
   if (!dataReady || !statusLoaded) {
     Swal.fire({
@@ -318,36 +318,26 @@ async function clockInOut(status) {
 
   const btn = status === "上班" ? btnStart : btnEnd;
   const originalText = btn.textContent;
+  
+  btn.disabled = true;
 
-  // [關鍵修改點 1]：初始化動畫狀態
-  let sec = 3;
-  btn.textContent = `打卡中… ${sec}s`;
-  btn.disabled = true; // 鎖定按鈕
-
-  // 定義倒數計時器實體，稍後需要清除它
-  const timerInterval = setInterval(() => {
-    sec--;
-    if (sec > 0) {
-      btn.textContent = `打卡中… ${sec}s`;
-    } else {
-      // 當倒數到 1 時，顯示最後狀態，文字不再跳動
-      btn.textContent = `打卡處理中…`;
-      clearInterval(timerInterval); // 停止動畫
-    }
-  }, 1000);
+  // 1. 先完整執行 3 秒倒數動畫，絕對不中途被打斷或重設
+  for (let sec = 3; sec > 0; sec--) {
+    btn.textContent = `打卡中… ${sec}s`;
+    await new Promise(r => setTimeout(r, 1000));
+  }
+  
+  btn.textContent = `打卡處理中…`;
 
   try {
-    // 發送打卡請求
+    // 2. 倒數結束後，才發送後台打卡請求
     const res = await fetch(API_ENDPOINT, {
       method: "POST",
       body: JSON.stringify({
         userId,
         userName,
         ip: getIP(),
-        gps: lastGPS || {
-          lat: "",
-          lng: ""
-        },
+        gps: lastGPS || { lat: "", lng: "" },
         status
       })
     });
@@ -355,25 +345,7 @@ async function clockInOut(status) {
     const data = await res.json();
     console.log("後台回傳結果：", data);
 
-    // [關鍵修改點 2]：確保倒數動畫最少跑 3 秒，若網路太快則延遲顯示彈窗
-    const minWaitTime = 3000; // 確保總等待時間至少為 3 秒 (秒數*1000)
-    const elapsedTime = (3 - sec) * 1000; // 計算從點擊到現在已經過的時間 (不準確，但簡單估算)
-    // 更好的做法是記錄開始時間，這裡用簡單的時間差計算
-    const startTime = new Date().getTime();
-    
-    // [這裡是嚴謹的做法，確保至少跑完動畫]
-    // 為了讓使用者感覺動畫有跑完，我們等待剩下的時間，或者直接彈窗
-    // 建議簡化寫法如下，讓動畫跑完最後 1 秒文字
-    
-    if (sec > 0) {
-      // 如果倒數還沒結束，為了體驗，我們讓它跑完最後一秒
-      await new Promise(r => setTimeout(r, sec * 1000 + 500)); // 多加 0.5秒緩衝
-    } else {
-      // 如果倒數已經結束（顯示打卡處理中），我們稍微延遲一下讓 UI 反應
-      await new Promise(r => setTimeout(r, 500)); 
-    }
-
-    // 檢查後台回傳訊息並彈窗
+    // 3. 根據後台回傳結果彈出對應視窗
     if (data && data.message) {
       if (data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")) {
         await Swal.fire({
@@ -399,7 +371,7 @@ async function clockInOut(status) {
           });
         }
 
-        // 建立紀錄並發送 LIFF 訊息
+        // 發送 LIFF 訊息
         const record = {
           userName,
           status: data.status || status,
@@ -410,6 +382,7 @@ async function clockInOut(status) {
         };
         sendSelfMessage(record);
       }
+      
       // 更新今日打卡清單
       updateTodayRecords();
     } else {
@@ -430,8 +403,7 @@ async function clockInOut(status) {
       showConfirmButton: false
     });
   } finally {
-    // [關鍵修改點 3]：最後無論成功失敗，還原按鈕狀態
-    if (timerInterval) clearInterval(timerInterval); // 保險清除
+    // 4. 最後統一還原按鈕狀態
     btn.textContent = originalText;
     btn.disabled = false;
   }
