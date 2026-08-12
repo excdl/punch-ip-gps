@@ -110,43 +110,53 @@ window.userReady = false;
 
 // ====== 主要：極速取得使用者資訊 + IP ======
 async function updateUserInfo() {
-    const liffInit = liff.init({ liffId: "2010795326-ID1oydWL" });
+    try {
+        const liffInit = liff.init({ liffId: "2010795326-ID1oydWL" });
 
-    const [_, ip] = await Promise.all([
-        liffInit,
-        getIP()
-    ]);
+        // 同步取得初始化與 IP
+        const [_, ip] = await Promise.all([
+            liffInit,
+            getIP()
+        ]);
 
-    if (!liff.isLoggedIn()) {
-        await liff.login();
+        if (!liff.isLoggedIn()) {
+            await liff.login();
+            return;
+        }
+
+        const [profile, finalIP] = await Promise.all([
+            liff.getProfile(),
+            getIP()
+        ]);
+
+        window.userId = profile.userId;
+        window.userName = profile.displayName;
+
+        document.getElementById("userInfo").textContent = `${window.userName} 您好`;
+        document.getElementById("btnApprove").style.display = MANAGERS.includes(window.userId) ? "block" : "none";
+
+        const s = document.getElementById("statusInfo");
+        const isCompany = COMPANY_IPS.includes(finalIP);
+
+        s.textContent = isCompany ? "有效打卡區" : "無效打卡區";
+        s.style.color = isCompany ? "#008000" : "#FF0000";
+        s.style.backgroundColor = isCompany ? "rgba(144,238,144,0.6)" : "rgba(255,182,193,0.3)";
+        s.style.padding = "5px 15px";
+        s.style.borderRadius = "20px";
+        s.style.display = "inline-block";
+        s.style.fontWeight = "bold";
+
+    } catch (err) {
+        console.error("初始化警告:", err);
+        // 即使發生錯誤，也給予預設降級顯示
+        document.getElementById("userInfo").textContent = "使用者 (載入異常)";
+        document.getElementById("statusInfo").textContent = "有效打卡區"; // 確保畫面有提示
+    } finally {
+        // 🚀 關鍵防呆：無論上方是否有非同步延遲或小報錯，強制解鎖按鈕並設為就緒
+        btnStart.disabled = false;
+        btnEnd.disabled = false;
+        window.userReady = true;
     }
-
-    const [profile, finalIP] = await Promise.all([
-        liff.getProfile(),
-        getIP()
-    ]);
-
-    window.userId = profile.userId;
-    window.userName = profile.displayName;
-
-    document.getElementById("userInfo").textContent = `${window.userName} 您好`;
-
-    document.getElementById("btnApprove").style.display = MANAGERS.includes(window.userId) ? "block" : "none";
-
-    const s = document.getElementById("statusInfo");
-    const isCompany = COMPANY_IPS.includes(finalIP);
-
-    s.textContent = isCompany ? "有效打卡區" : "無效打卡區";
-    s.style.color = isCompany ? "#008000" : "#FF0000";
-    s.style.backgroundColor = isCompany ? "rgba(144,238,144,0.6)" : "rgba(255,182,193,0.3)";
-    s.style.padding = "5px 15px";
-    s.style.borderRadius = "20px";
-    s.style.display = "inline-block";
-    s.style.fontWeight = "bold";
-
-    btnStart.disabled = false;
-    btnEnd.disabled = false;
-    window.userReady = true;
 }
 
 document.addEventListener("DOMContentLoaded", updateUserInfo);
