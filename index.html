@@ -170,6 +170,7 @@ async function initUser(){
 
 /* ===== 狀態 (改為支援僅靠 IP 快速判斷，不強制等待 lastGPS) ===== */
 async function updateStatus(forceRefresh = false) {
+  // 如果連 IP 都還沒抓到，才顯示初始化提示
   if (!cachedIP && !lastGPS) {
     statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
@@ -333,9 +334,9 @@ async function clockInOut(status){
     });
 
     const data = await res.json();
-    
-    // 💡 修正後：只要後端有回傳 status 和 date，就代表伺服器正常運作並完成資料處理
-    if(data && data.status && data.date){
+    const actuallyUpdated = data.message && (data.message.includes("已更新") || data.message.includes("成功"));
+
+    if(actuallyUpdated){
       const record = {
         userName,
         status: data.status,
@@ -345,28 +346,18 @@ async function clockInOut(status){
         rangeStatus: data.rangeStatus
       };
 
-      // 檢查是否為提示訊息（如：未更新、上限等）
-      if(data.message && (data.message.includes("未更新") || data.message.includes("上限"))){
-        Swal.fire({icon:"info", title: data.message, timer: 2000, showConfirmButton: false});
+      if(data.rangeStatus === "有效打卡區"){
+        Swal.fire({icon:"success",title:"打卡成功",timer:2000,showConfirmButton:false});
       } else {
-        // 正常成功或更新
-        if(data.rangeStatus === "有效打卡區"){
-          Swal.fire({icon:"success", title: data.message || "打卡成功", timer: 2000, showConfirmButton: false});
-        } else {
-          Swal.fire({icon:"warning", title: "打卡無效", timer: 2000, showConfirmButton: false});
-        }
-        sendSelfMessage(record);
+        Swal.fire({icon:"warning",title:"打卡無效",timer:2000,showConfirmButton:false});
       }
 
+      sendSelfMessage(record);
       updateTodayRecords();
       updateStatus(true);
-    } else {
-      // 處理其他未預期或錯誤的訊息提示（如不能連續打上班）
-      Swal.fire({icon:"warning", title: data.message || "操作提示", timer: 2000, showConfirmButton: false});
     }
 
   }catch(err){
-    console.error("打卡發生錯誤：", err);
     Swal.fire({icon:"error",title:"打卡失敗",timer:2000,showConfirmButton:false});
   } finally {
     clearInterval(timer);
@@ -388,18 +379,22 @@ window.onload = async () => {
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
+  // 1. 先行抓取 IP 與初始化 GPS 背景監聽
   await preloadIP();
   initGPSWatcher();
 
   try {
+    // 2. 初始化 LIFF 使用者
     await initUser();
     dataReady = true;
 
+    // 3. 平行讀取今日紀錄與主管權限
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
+    // 4. [關鍵修改] 即使還沒有 GPS 座標，也先用 IP 進行第一次狀態檢查解除卡頓
     await updateStatus(true);
 
   } catch (error) {
@@ -409,6 +404,11 @@ window.onload = async () => {
 </script>
 </body>
 </html>
+
+
+
+
+
 
 
 
