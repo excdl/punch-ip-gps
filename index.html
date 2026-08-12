@@ -292,7 +292,7 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡 (完美流暢版) ===== */
+/* ===== 打卡 (終極防閃退版) ===== */
 async function clockInOut(status) {
   if (!dataReady || !statusLoaded) {
     Swal.fire({
@@ -319,9 +319,12 @@ async function clockInOut(status) {
   const btn = status === "上班" ? btnStart : btnEnd;
   const originalText = btn.textContent;
   
+  // 雙重鎖定按鈕與狀態
   btn.disabled = true;
+  btnStart.style.pointerEvents = "none";
+  btnEnd.style.pointerEvents = "none";
 
-  // 1. 先完整執行 3 秒倒數動畫，絕對不中途被打斷或重設
+  // 1. 平順執行 3 秒倒數
   for (let sec = 3; sec > 0; sec--) {
     btn.textContent = `打卡中… ${sec}s`;
     await new Promise(r => setTimeout(r, 1000));
@@ -330,7 +333,7 @@ async function clockInOut(status) {
   btn.textContent = `打卡處理中…`;
 
   try {
-    // 2. 倒數結束後，才發送後台打卡請求
+    // 2. 伺服器打卡請求
     const res = await fetch(API_ENDPOINT, {
       method: "POST",
       body: JSON.stringify({
@@ -345,7 +348,6 @@ async function clockInOut(status) {
     const data = await res.json();
     console.log("後台回傳結果：", data);
 
-    // 3. 根據後台回傳結果彈出對應視窗
     if (data && data.message) {
       if (data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")) {
         await Swal.fire({
@@ -383,8 +385,24 @@ async function clockInOut(status) {
         sendSelfMessage(record);
       }
       
-      // 更新今日打卡清單
-      updateTodayRecords();
+      // 更新今日打卡清單（使用純文字賦值，不觸發其他全域狀態監聽）
+      try {
+        const todayRes = await fetch(`${API_ENDPOINT}?action=getToday&userId=${userId}&date=${getTodayString()}`);
+        const todayData = await todayRes.json();
+        if (todayData.length > 0) {
+          let htmlContent = "今日打卡紀錄：<br>";
+          const recordsHTML = todayData.map(r => {
+            let color = "#3498db";
+            if (r.status === "下班") color = "#2ecc71";
+            if (r.company.includes("錯誤")) color = "#e67e22";
+            return `<span style="border-left-color: ${color}">${r.status}：${r.time}（${r.company}）</span>`;
+          }).join("");
+          todayRecords.innerHTML = htmlContent + recordsHTML;
+        }
+      } catch(e) {
+        console.warn("更新今日紀錄失敗", e);
+      }
+
     } else {
       await Swal.fire({
         icon: "error",
@@ -403,7 +421,9 @@ async function clockInOut(status) {
       showConfirmButton: false
     });
   } finally {
-    // 4. 最後統一還原按鈕狀態
+    // 3. 解除雙重鎖定並還原按鈕
+    btnStart.style.pointerEvents = "auto";
+    btnEnd.style.pointerEvents = "auto";
     btn.textContent = originalText;
     btn.disabled = false;
   }
