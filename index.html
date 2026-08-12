@@ -292,13 +292,19 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡 ===== */
-async function clockInOut(status){
-  if(!dataReady || !statusLoaded){
-    Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
+/* ===== 打卡 (修正體驗版本) ===== */
+async function clockInOut(status) {
+  if (!dataReady || !statusLoaded) {
+    Swal.fire({
+      icon: "info",
+      title: "資料讀取中或定位中",
+      timer: 1500,
+      showConfirmButton: false
+    });
     return;
   }
 
+  // 權限檢查
   if (lastRangeStatus !== "有效打卡區" && !isManager) {
     Swal.fire({
       icon: "warning",
@@ -310,90 +316,124 @@ async function clockInOut(status){
     return;
   }
 
-  const btn = status==="上班"?btnStart:btnEnd;
-  btn.disabled = true;
+  const btn = status === "上班" ? btnStart : btnEnd;
   const originalText = btn.textContent;
 
+  // [關鍵修改點 1]：初始化動畫狀態
   let sec = 3;
-  const timer = setInterval(()=>{
-    btn.textContent = `打卡中… ${sec}s`;
-    sec--;
-    if(sec<0) clearInterval(timer);
-  },1000);
+  btn.textContent = `打卡中… ${sec}s`;
+  btn.disabled = true; // 鎖定按鈕
 
-  try{
+  // 定義倒數計時器實體，稍後需要清除它
+  const timerInterval = setInterval(() => {
+    sec--;
+    if (sec > 0) {
+      btn.textContent = `打卡中… ${sec}s`;
+    } else {
+      // 當倒數到 1 時，顯示最後狀態，文字不再跳動
+      btn.textContent = `打卡處理中…`;
+      clearInterval(timerInterval); // 停止動畫
+    }
+  }, 1000);
+
+  try {
+    // 發送打卡請求
     const res = await fetch(API_ENDPOINT, {
-      method:"POST",
+      method: "POST",
       body: JSON.stringify({
-        userId, 
-        userName, 
-        ip: getIP(), 
-        gps: lastGPS || { lat: "", lng: "" }, 
+        userId,
+        userName,
+        ip: getIP(),
+        gps: lastGPS || {
+          lat: "",
+          lng: ""
+        },
         status
       })
     });
 
     const data = await res.json();
-    console.log("後台回傳結果：", data); // 👈 可在 F12 主控台檢查回傳內容
+    console.log("後台回傳結果：", data);
 
-    // 立即清除計時器與恢復按鈕狀態，避免畫面卡死
-    clearInterval(timer);
-    btn.textContent = originalText;
-    btn.disabled = false;
+    // [關鍵修改點 2]：確保倒數動畫最少跑 3 秒，若網路太快則延遲顯示彈窗
+    const minWaitTime = 3000; // 確保總等待時間至少為 3 秒 (秒數*1000)
+    const elapsedTime = (3 - sec) * 1000; // 計算從點擊到現在已經過的時間 (不準確，但簡單估算)
+    // 更好的做法是記錄開始時間，這裡用簡單的時間差計算
+    const startTime = new Date().getTime();
+    
+    // [這裡是嚴謹的做法，確保至少跑完動畫]
+    // 為了讓使用者感覺動畫有跑完，我們等待剩下的時間，或者直接彈窗
+    // 建議簡化寫法如下，讓動畫跑完最後 1 秒文字
+    
+    if (sec > 0) {
+      // 如果倒數還沒結束，為了體驗，我們讓它跑完最後一秒
+      await new Promise(r => setTimeout(r, sec * 1000 + 500)); // 多加 0.5秒緩衝
+    } else {
+      // 如果倒數已經結束（顯示打卡處理中），我們稍微延遲一下讓 UI 反應
+      await new Promise(r => setTimeout(r, 500)); 
+    }
 
-    // 檢查後台回傳訊息是否存在
+    // 檢查後台回傳訊息並彈窗
     if (data && data.message) {
-      // 判斷是否為錯誤、上限或未更新
-      if(data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")){
-        Swal.fire({
-          icon: "warning", 
-          title: data.message, 
-          timer: 2000, 
+      if (data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")) {
+        await Swal.fire({
+          icon: "warning",
+          title: data.message,
+          timer: 2000,
           showConfirmButton: false
         });
       } else {
-        // 正常成功或更新狀況
-        if(data.rangeStatus === "有效打卡區"){
-          Swal.fire({
-            icon: "success", 
-            title: "打卡成功", 
-            timer: 2000, 
+        if (data.rangeStatus === "有效打卡區") {
+          await Swal.fire({
+            icon: "success",
+            title: "打卡成功",
+            timer: 2000,
             showConfirmButton: false
           });
         } else {
-          Swal.fire({
-            icon: "warning", 
-            title: "打卡完成（不在有效打卡區）", 
-            timer: 2000, 
+          await Swal.fire({
+            icon: "warning",
+            title: "打卡完成（不在有效打卡區）",
+            timer: 2000,
             showConfirmButton: false
           });
         }
 
         // 建立紀錄並發送 LIFF 訊息
         const record = {
-          userName, 
-          status: data.status || status, 
-          date: data.date, 
-          time: data.time, 
-          company: data.company || "未知", 
-          rangeStatus: data.rangeStatus 
+          userName,
+          status: data.status || status,
+          date: data.date,
+          time: data.time,
+          company: data.company || "未知",
+          rangeStatus: data.rangeStatus
         };
-        
         sendSelfMessage(record);
       }
-      
       // 更新今日打卡清單
       updateTodayRecords();
     } else {
-      Swal.fire({icon:"error", title:"伺服器回應異常", timer:2000, showConfirmButton:false});
+      await Swal.fire({
+        icon: "error",
+        title: "伺服器回應異常",
+        timer: 2000,
+        showConfirmButton: false
+      });
     }
 
-  }catch(err){
+  } catch (err) {
     console.error("打卡發生錯誤：", err);
-    clearInterval(timer);
+    Swal.fire({
+      icon: "error",
+      title: "打卡連線失敗",
+      timer: 2000,
+      showConfirmButton: false
+    });
+  } finally {
+    // [關鍵修改點 3]：最後無論成功失敗，還原按鈕狀態
+    if (timerInterval) clearInterval(timerInterval); // 保險清除
     btn.textContent = originalText;
     btn.disabled = false;
-    Swal.fire({icon:"error", title:"打卡連線失敗", timer:2000, showConfirmButton:false});
   }
 }
 
