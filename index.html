@@ -334,7 +334,7 @@ async function clockInOut(status){
     });
 
     const data = await res.json();
-    const actuallyUpdated = data.message && (data.message.includes("已更新") || data.message.includes("成功"));
+    const actuallyUpdated = data.message ? true : false;
 
     if(actuallyUpdated){
       const record = {
