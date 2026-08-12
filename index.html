@@ -136,7 +136,7 @@ async function updateUserInfo() {
     const s = document.getElementById("statusInfo");
     const isCompany = COMPANY_IPS.includes(finalIP);
 
-    s.textContent = isCompany ? "公司網路" : "非公司網路";
+    s.textContent = isCompany ? "有效打卡區" : "無效打卡區";
     s.style.color = isCompany ? "#008000" : "#FF0000";
     s.style.backgroundColor = isCompany ? "rgba(144,238,144,0.6)" : "rgba(255,182,193,0.3)";
     s.style.padding = "5px 15px";
