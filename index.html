@@ -292,19 +292,13 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡 (終極防閃退版) ===== */
-async function clockInOut(status) {
-  if (!dataReady || !statusLoaded) {
-    Swal.fire({
-      icon: "info",
-      title: "資料讀取中或定位中",
-      timer: 1500,
-      showConfirmButton: false
-    });
+/* ===== 打卡 ===== */
+async function clockInOut(status){
+  if(!dataReady || !statusLoaded){
+    Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
     return;
   }
 
-  // 權限檢查
   if (lastRangeStatus !== "有效打卡區" && !isManager) {
     Swal.fire({
       icon: "warning",
@@ -316,116 +310,90 @@ async function clockInOut(status) {
     return;
   }
 
-  const btn = status === "上班" ? btnStart : btnEnd;
-  const originalText = btn.textContent;
-  
-  // 雙重鎖定按鈕與狀態
+  const btn = status==="上班"?btnStart:btnEnd;
   btn.disabled = true;
-  btnStart.style.pointerEvents = "none";
-  btnEnd.style.pointerEvents = "none";
+  const originalText = btn.textContent;
 
-  // 1. 平順執行 3 秒倒數
-  for (let sec = 3; sec > 0; sec--) {
+  let sec = 3;
+  const timer = setInterval(()=>{
     btn.textContent = `打卡中… ${sec}s`;
-    await new Promise(r => setTimeout(r, 1000));
-  }
-  
-  btn.textContent = `打卡處理中…`;
+    sec--;
+    if(sec<0) clearInterval(timer);
+  },1000);
 
-  try {
-    // 2. 伺服器打卡請求
+  try{
     const res = await fetch(API_ENDPOINT, {
-      method: "POST",
+      method:"POST",
       body: JSON.stringify({
-        userId,
-        userName,
-        ip: getIP(),
-        gps: lastGPS || { lat: "", lng: "" },
+        userId, 
+        userName, 
+        ip: getIP(), 
+        gps: lastGPS || { lat: "", lng: "" }, 
         status
       })
     });
 
     const data = await res.json();
-    console.log("後台回傳結果：", data);
+    console.log("後台回傳結果：", data); // 👈 可在 F12 主控台檢查回傳內容
 
+    // 立即清除計時器與恢復按鈕狀態，避免畫面卡死
+    clearInterval(timer);
+    btn.textContent = originalText;
+    btn.disabled = false;
+
+    // 檢查後台回傳訊息是否存在
     if (data && data.message) {
-      if (data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")) {
-        await Swal.fire({
-          icon: "warning",
-          title: data.message,
-          timer: 2000,
+      // 判斷是否為錯誤、上限或未更新
+      if(data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新")){
+        Swal.fire({
+          icon: "warning", 
+          title: data.message, 
+          timer: 2000, 
           showConfirmButton: false
         });
       } else {
-        if (data.rangeStatus === "有效打卡區") {
-          await Swal.fire({
-            icon: "success",
-            title: "打卡成功",
-            timer: 2000,
+        // 正常成功或更新狀況
+        if(data.rangeStatus === "有效打卡區"){
+          Swal.fire({
+            icon: "success", 
+            title: "打卡成功", 
+            timer: 2000, 
             showConfirmButton: false
           });
         } else {
-          await Swal.fire({
-            icon: "warning",
-            title: "打卡完成（不在有效打卡區）",
-            timer: 2000,
+          Swal.fire({
+            icon: "warning", 
+            title: "打卡完成（不在有效打卡區）", 
+            timer: 2000, 
             showConfirmButton: false
           });
         }
 
-        // 發送 LIFF 訊息
+        // 建立紀錄並發送 LIFF 訊息
         const record = {
-          userName,
-          status: data.status || status,
-          date: data.date,
-          time: data.time,
-          company: data.company || "未知",
-          rangeStatus: data.rangeStatus
+          userName, 
+          status: data.status || status, 
+          date: data.date, 
+          time: data.time, 
+          company: data.company || "未知", 
+          rangeStatus: data.rangeStatus 
         };
+        
         sendSelfMessage(record);
       }
       
-      // 更新今日打卡清單（使用純文字賦值，不觸發其他全域狀態監聽）
-      try {
-        const todayRes = await fetch(`${API_ENDPOINT}?action=getToday&userId=${userId}&date=${getTodayString()}`);
-        const todayData = await todayRes.json();
-        if (todayData.length > 0) {
-          let htmlContent = "今日打卡紀錄：<br>";
-          const recordsHTML = todayData.map(r => {
-            let color = "#3498db";
-            if (r.status === "下班") color = "#2ecc71";
-            if (r.company.includes("錯誤")) color = "#e67e22";
-            return `<span style="border-left-color: ${color}">${r.status}：${r.time}（${r.company}）</span>`;
-          }).join("");
-          todayRecords.innerHTML = htmlContent + recordsHTML;
-        }
-      } catch(e) {
-        console.warn("更新今日紀錄失敗", e);
-      }
-
+      // 更新今日打卡清單
+      updateTodayRecords();
     } else {
-      await Swal.fire({
-        icon: "error",
-        title: "伺服器回應異常",
-        timer: 2000,
-        showConfirmButton: false
-      });
+      Swal.fire({icon:"error", title:"伺服器回應異常", timer:2000, showConfirmButton:false});
     }
 
-  } catch (err) {
+  }catch(err){
     console.error("打卡發生錯誤：", err);
-    Swal.fire({
-      icon: "error",
-      title: "打卡連線失敗",
-      timer: 2000,
-      showConfirmButton: false
-    });
-  } finally {
-    // 3. 解除雙重鎖定並還原按鈕
-    btnStart.style.pointerEvents = "auto";
-    btnEnd.style.pointerEvents = "auto";
+    clearInterval(timer);
     btn.textContent = originalText;
     btn.disabled = false;
+    Swal.fire({icon:"error", title:"打卡連線失敗", timer:2000, showConfirmButton:false});
   }
 }
 
@@ -467,6 +435,7 @@ window.onload = async () => {
 </script>
 </body>
 </html>
+
 
 
 
