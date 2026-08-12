@@ -337,25 +337,23 @@ async function clockInOut(status){
     const actuallyUpdated = data.message ? true : false;
 
     if(actuallyUpdated){
-      const record = {
-        userName,
-        status: data.status,
-        date: data.date,
-        time: data.time,
-        company: data.company || "未知",
-        rangeStatus: data.rangeStatus
-      };
-
-      if(data.rangeStatus === "有效打卡區"){
-        Swal.fire({icon:"success",title:"打卡成功",timer:2000,showConfirmButton:false});
-      } else {
-        Swal.fire({icon:"warning",title:"打卡無效",timer:2000,showConfirmButton:false});
+        const record = {userName, status: data.status, date: data.date, time: data.time, company: data.company || "未知", rangeStatus: data.rangeStatus };
+        
+        // 判斷後台回傳的 message 是否包含「錯誤」或「上限」
+        if(data.message && (data.message.includes("錯誤") || data.message.includes("上限") || data.message.includes("未更新"))){
+          Swal.fire({icon:"warning", title: data.message, timer: 2000, showConfirmButton: false});
+        } else {
+          if(data.rangeStatus === "有效打卡區"){
+            Swal.fire({icon:"success", title:"打卡成功", timer: 2000, showConfirmButton: false});
+          } else {
+            Swal.fire({icon:"warning", title:"打卡無效", timer: 2000, showConfirmButton: false});
+          }
+          sendSelfMessage(record);
+        }
+        
+        // 僅更新今日打卡清單，避免重抓整組定位狀態導致閃退
+        updateTodayRecords();
       }
-
-      sendSelfMessage(record);
-      updateTodayRecords();
-      updateStatus(true);
-    }
 
   }catch(err){
     Swal.fire({icon:"error",title:"打卡失敗",timer:2000,showConfirmButton:false});
