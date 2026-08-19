@@ -66,7 +66,7 @@ let MANAGERS = [];
 let isManager = false;
 
 /* ===== 前端 IP 白名單設定 (請在此填入公司合法 IP) ===== */
-const COMPANY_IPS = ["123.45.67.89", "111.222.333.444", "27.247.226.107"];
+const COMPANY_IPS = ["220.134.112.245", " 114.34.60.48", "27.247.226.107"];
 
 /* ===== GPS 即時系統 ===== */
 let lastGPS = null;
@@ -188,7 +188,7 @@ async function updateStatus(forceRefresh = false) {
       if (forceRefresh || lastRangeStatus !== "有效打卡區") {
         lastRangeStatus = "有效打卡區";
         statusInfo.style.background = "#2ecc71";
-        statusInfo.textContent = "有效打卡區 (IP驗證)";
+        statusInfo.textContent = "有效打卡區";
         setButtonsLock(false, "上班", "下班");
       }
       statusLoaded = true;
