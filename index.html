@@ -190,7 +190,7 @@ async function updateStatus(forceRefresh = false) {
       if (forceRefresh || lastRangeStatus !== "有效打卡區") {
         lastRangeStatus = "有效打卡區";
         statusInfo.style.background = "#2ecc71";
-        statusInfo.textContent = "有效打卡區 (IP符合)";
+        statusInfo.textContent = "有效打卡區";
         setButtonsLock(false, "上班", "下班");
       }
       statusLoaded = true;
