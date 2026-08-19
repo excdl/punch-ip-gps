@@ -58,15 +58,15 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
  
 
 <script>
-const API_ENDPOINT="https://script.google.com/macros/s/AKfycbznmvTF1bcGCdab7TeQReP96viYaD6qoGFRtMB1p2toSv3oNzWmiE64b6VODMUfSDn6/exec";
+const API_ENDPOINT="https://script.google.com/macros/s/AKfycbyFS8iU7VDiWzYm7DL4Yk80PJVmvUZ1arh8zXzT9ibPQrxCAgzpnXgvClEeFY6OScDA/exec";
 
 let userId="", userName="", dataReady=false;
 let statusLoaded=false;
 let MANAGERS = [];
 let isManager = false;
 
-/* ===== 前端 IP 白名單設定 ===== */
-const COMPANY_IPS = ["220.134.112.245", "27.247.226.107"," 114.34.60.48"]; // 請在此填入公司的合法 IP 清單
+/* ===== 前端 IP 白名單設定 (請在此填入公司合法 IP) ===== */
+const COMPANY_IPS = ["123.45.67.89", "111.222.333.444", "27.247.226.107"];
 
 /* ===== GPS 即時系統 ===== */
 let lastGPS = null;
@@ -144,7 +144,6 @@ function initGPSWatcher(){
         lat: pos.coords.latitude,
         lng: pos.coords.longitude
       };
-      
       updateStatus(isFirstLocation); 
     },
     err=>console.warn("GPS錯誤:",err),
@@ -171,7 +170,7 @@ async function initUser(){
   userInfo.textContent = `${userName} 您好`;
 }
 
-/* ===== 狀態 (改由前端進行 IP 白名單比對) ===== */
+/* ===== 狀態 (前端直接比對 IP 白名單) ===== */
 async function updateStatus(forceRefresh = false) {
   if (!cachedIP && !lastGPS) {
     statusInfo.textContent = "網路與定位初始化中…";
@@ -185,19 +184,17 @@ async function updateStatus(forceRefresh = false) {
     const currentIP = getIP();
     const isIpMatched = COMPANY_IPS.includes(currentIP);
 
-    // 如果 IP 符合白名單，直接判定為有效打卡區，不需等待後端回傳 GPS 距離
     if (isIpMatched) {
       if (forceRefresh || lastRangeStatus !== "有效打卡區") {
         lastRangeStatus = "有效打卡區";
         statusInfo.style.background = "#2ecc71";
-        statusInfo.textContent = "有效打卡區";
+        statusInfo.textContent = "有效打卡區 (IP驗證)";
         setButtonsLock(false, "上班", "下班");
       }
       statusLoaded = true;
       return;
     }
 
-    // 若 IP 不符，則交由後端透過 GPS 距離進行判定
     const lat = lastGPS ? lastGPS.lat : "";
     const lng = lastGPS ? lastGPS.lng : "";
     
@@ -309,14 +306,13 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 優化後的打卡函式 ===== */
+/* ===== 打卡函式（含動畫與 IP 判斷） ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
     Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
     return;
   }
 
-  // 判斷當前 IP 是否符合前端白名單
   const currentIP = getIP();
   const isIpMatched = COMPANY_IPS.includes(currentIP);
 
@@ -335,7 +331,7 @@ async function clockInOut(status){
   btn.disabled = true;
   const originalText = btn.textContent;
 
-  // 🚀 優化後的載入提示（內嵌獨立動畫樣式）
+  // 🚀 具備順暢旋轉動畫的載入提示框
   Swal.fire({
       html: `
           <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -373,7 +369,7 @@ async function clockInOut(status){
         ip: currentIP, 
         gps: lastGPS || { lat: "", lng: "" }, 
         status,
-        ipMatched: isIpMatched 
+        ipMatched: isIpMatched
       })
     });
 
@@ -417,10 +413,10 @@ btnStart.onclick = () => clockInOut("上班");
 btnEnd.onclick = () => clockInOut("下班");
 
 document.getElementById("btnApprove").onclick = () => {
-  window.location.href = "https://script.google.com/macros/s/AKfycbze_KYl3gU7qRDLr52F0B3rmUtB4W-87Hx82vKLF5jr33zADdgnpSSYvv9vYGYZE8MQ/exec";
+  window.location.href = "https://script.google.com/macros/s/AKfycbwe5O6ktoaMPNsbT-U8kyruMisF4pd9ezoEsW07ofMP4wKzj4veHhjsc9-cmeddUU9mgQ/exec";
 };
 
-/* ===== 載入 ===== */
+/* ===== 初始化載入 ===== */
 window.onload = async () => {
   statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
