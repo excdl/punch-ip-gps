@@ -292,58 +292,77 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡函式（含動畫與 IP 判斷） ===== */
+/* ===== 打卡函式（含點擊瞬間即時驗證 IP 與狀態） ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
     Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
     return;
   }
 
-  const currentIP = getIP();
-  const isIpMatched = COMPANY_IPS.includes(currentIP);
-
-  if (lastRangeStatus !== "有效打卡區" && !isIpMatched && !isManager) {
-    Swal.fire({
-      icon: "warning",
-      title: "目前為無效打卡區",
-      text: "僅主管可打卡",
-      timer: 1500,
-      showConfirmButton: false
-    });
-    return;
-  }
-
+  // 🚀 關鍵優化：在點擊打卡的瞬間，強制重新抓取一次最新 IP，防止使用者離開公司後用舊快取打卡
   const btn = status==="上班"?btnStart:btnEnd;
   btn.disabled = true;
   const originalText = btn.textContent;
 
-  // 🚀 具備順暢旋轉動畫的載入提示框
   Swal.fire({
       html: `
           <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-              <div style="
-                  width: 50px; 
-                  height: 50px; 
-                  margin: 0 auto 18px auto;
-                  border: 4px solid #f3f3f3; 
-                  border-top: 4px solid #3498db; 
-                  border-radius: 50%; 
-                  animation: customSpin 0.8s linear infinite;
-              "></div>
-              <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px; font-weight: 600;">系統打卡處理中</h3>
-              <p style="margin: 0; color: #7f8c8d; font-size: 14px; letter-spacing: 0.5px;">正在與雲端伺服器安全同步，請稍候...</p>
+              <div style="width: 50px; height: 50px; margin: 0 auto 18px auto; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: customSpin 0.8s linear infinite;"></div>
+              <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px; font-weight: 600;">正在驗證最新網路環境</h3>
+              <p style="margin: 0; color: #7f8c8d; font-size: 14px; letter-spacing: 0.5px;">請稍候...</p>
               <style>
-                  @keyframes customSpin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                  }
+                  @keyframes customSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
               </style>
           </div>
       `,
       showConfirmButton: false,
       allowOutsideClick: false,
-      background: '#ffffff',
-      backdrop: 'rgba(0, 0, 0, 0.45)'
+      background: '#ffffff'
+  });
+
+  let currentIP = "";
+  try {
+    const resIP = await fetch("https://api.ipify.org?format=json");
+    const dataIP = await resIP.json();
+    currentIP = dataIP.ip;
+    cachedIP = currentIP; // 更新快取
+  } catch(err) {
+    console.warn("即時取得 IP 失敗，改用快取 IP:", err);
+    currentIP = getIP();
+  }
+
+  const isIpMatched = COMPANY_IPS.includes(currentIP.trim());
+
+  // 🛑 嚴格防護：如果最新 IP 不在白名單內，且不是主管，直接阻擋打卡！
+  if (!isIpMatched && !isManager) {
+    Swal.fire({
+      icon: "warning",
+      title: "打卡失敗",
+      text: "目前網路環境已超出公司打卡範圍（IP 不符）",
+      timer: 2000,
+      showConfirmButton: false
+    });
+    btn.textContent = originalText;
+    btn.disabled = false;
+    updateStatus(true); // 同時更新畫面狀態為無效打卡區
+    return;
+  }
+
+  // 🚀 通過驗證後，繼續原本的打卡動畫與送出流程
+  Swal.fire({
+      html: `
+          <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+              <div style="width: 50px; height: 50px; margin: 0 auto 18px auto; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: customSpin 0.8s linear infinite;"></div>
+              <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px; font-weight: 600;">系統打卡處理中</h3>
+              <p style="margin: 0; color: #7f8c8d; font-size: 14px; letter-spacing: 0.5px;">正在與雲端伺服器安全同步，請稍候...</p>
+              <style>
+                  @keyframes customSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+              </style>
+          </div>
+      `,
+      showConfirmButton: false,
+      allowOutsideClick: false,
+      background: '#ffffff'
   });
 
   try{
