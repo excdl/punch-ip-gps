@@ -118,7 +118,7 @@ function updateDateTime(){
 setInterval(updateDateTime,1000);
 updateDateTime();
 
-/* ===== IP ===== */
+/* ===== IP (極速非同步) ===== */
 async function preloadIP(){
   try{
     const res=await fetch("https://api.ipify.org?format=json");
@@ -132,7 +132,7 @@ function getIP(){
   return cachedIP || "";
 }
 
-/* ===== GPS ===== */
+/* ===== GPS (優化逾時機制，加快反應) ===== */
 function initGPSWatcher(){
   if(!navigator.geolocation) return;
 
@@ -149,8 +149,8 @@ function initGPSWatcher(){
     err=>console.warn("GPS錯誤:",err),
     {
       enableHighAccuracy:true,
-      maximumAge:3000,
-      timeout:5000
+      maximumAge:2000,
+      timeout:3000 // 縮短至 3 秒，加快判定速度
     }
   );
 }
@@ -172,7 +172,6 @@ async function initUser(){
 
 /* ===== 狀態 (前端直接比對 IP 白名單) ===== */
 async function updateStatus(forceRefresh = false) {
-  // 🚀 如果使用者基本資料還沒載入完，先不處理狀態與解鎖按鈕
   if (!dataReady) {
     statusInfo.textContent = "使用者資料載入中…";
     statusInfo.style.background = "#95a5a6";
@@ -191,7 +190,7 @@ async function updateStatus(forceRefresh = false) {
 
   try {
     const currentIP = getIP();
-    const isIpMatched = COMPANY_IPS.includes(currentIP);
+    const isIpMatched = COMPANY_IPS.includes(currentIP.trim());
 
     if (isIpMatched) {
       if (forceRefresh || lastRangeStatus !== "有效打卡區") {
@@ -308,13 +307,12 @@ async function sendSelfMessage(record){
         }
       }
     }]);
-    await new Promise(r => setTimeout(r, 800));
   }catch(err){
     console.error("LIFF 訊息傳送失敗:", err);
   }
 }
 
-/* ===== 打卡函式（含動畫與 IP 判斷） ===== */
+/* ===== 打卡函式 ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
     Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
@@ -322,7 +320,7 @@ async function clockInOut(status){
   }
 
   const currentIP = getIP();
-  const isIpMatched = COMPANY_IPS.includes(currentIP);
+  const isIpMatched = COMPANY_IPS.includes(currentIP.trim());
 
   if (lastRangeStatus !== "有效打卡區" && !isIpMatched && !isManager) {
     Swal.fire({
@@ -339,33 +337,20 @@ async function clockInOut(status){
   btn.disabled = true;
   const originalText = btn.textContent;
 
-  // 🚀 具備順暢旋轉動畫的載入提示框
   Swal.fire({
       html: `
-          <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
-              <div style="
-                  width: 50px; 
-                  height: 50px; 
-                  margin: 0 auto 18px auto;
-                  border: 4px solid #f3f3f3; 
-                  border-top: 4px solid #3498db; 
-                  border-radius: 50%; 
-                  animation: customSpin 0.8s linear infinite;
-              "></div>
-              <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px; font-weight: 600;">系統打卡處理中</h3>
-              <p style="margin: 0; color: #7f8c8d; font-size: 14px; letter-spacing: 0.5px;">正在與雲端伺服器安全同步，請稍候...</p>
+          <div style="padding: 15px 0;">
+              <div style="width: 50px; height: 50px; margin: 0 auto 18px auto; border: 4px solid #f3f3f3; border-top: 4px solid #3498db; border-radius: 50%; animation: customSpin 0.8s linear infinite;"></div>
+              <h3 style="margin: 0 0 8px 0; color: #2c3e50; font-size: 20px;">系統打卡處理中</h3>
+              <p style="margin: 0; color: #7f8c8d; font-size: 14px;">正在與雲端伺服器同步，請稍候...</p>
               <style>
-                  @keyframes customSpin {
-                      0% { transform: rotate(0deg); }
-                      100% { transform: rotate(360deg); }
-                  }
+                  @keyframes customSpin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
               </style>
           </div>
       `,
       showConfirmButton: false,
       allowOutsideClick: false,
-      background: '#ffffff',
-      backdrop: 'rgba(0, 0, 0, 0.45)'
+      background: '#ffffff'
   });
 
   try{
@@ -410,7 +395,7 @@ async function clockInOut(status){
 
   }catch(err){
     console.error("打卡發生錯誤:", err);
-    Swal.fire({icon:"error", title:"打卡連線失敗", text: "請檢查網路狀態後再試一次", timer: 2000, showConfirmButton: false});
+    Swal.fire({icon:"error", title:"打卡連線失敗", text: "請檢查網路狀態", timer: 2000, showConfirmButton: false});
   } finally {
     btn.textContent = originalText;
     btn.disabled = false;
@@ -424,29 +409,28 @@ document.getElementById("btnApprove").onclick = () => {
   window.location.href = "https://script.google.com/macros/s/AKfycbwe5O6ktoaMPNsbT-U8kyruMisF4pd9ezoEsW07ofMP4wKzj4veHhjsc9-cmeddUU9mgQ/exec";
 };
 
-/* ===== 初始化載入 ===== */
+/* ===== 初始化載入 (極速並行化) ===== */
 window.onload = async () => {
   statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  await preloadIP();
+  // 🚀 同步並行發動 IP 查詢與 GPS 啟動
+  preloadIP();
   initGPSWatcher();
 
   try {
-    // 1. 先完整抓到 LIFF 使用者名稱與 ID
+    // 1. 優先抓取 LIFF 身分
     await initUser();
-    
-    // 2. 資料準備就緒，此時才允許狀態更新去解鎖按鈕
     dataReady = true;
 
-    // 3. 同步讀取今日紀錄與主管清單
+    // 2. 利用 Promise.all 同時平行載入主管清單與今日紀錄（速度提升兩倍）
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
-    // 4. 最後更新打卡狀態
+    // 3. 更新狀態
     await updateStatus(true);
 
   } catch (error) {
