@@ -172,7 +172,6 @@ async function initUser(){
 
 /* ===== 狀態 (前端直接比對 IP 白名單) ===== */
 async function updateStatus(forceRefresh = false) {
-  // 🚀 如果使用者基本資料還沒載入完，先不處理狀態與解鎖按鈕
   if (!dataReady) {
     statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
@@ -181,8 +180,8 @@ async function updateStatus(forceRefresh = false) {
     return;
   }
 
-  if (!cachedIP && !lastGPS) {
-    statusInfo.textContent = "網路與定位初始化中…";
+  if (!cachedIP) {
+    statusInfo.textContent = "網路初始化中…";
     statusInfo.style.background = "#95a5a6";
     setButtonsLock(true, "載入中...", "載入中...");
     statusLoaded = false;
@@ -194,35 +193,14 @@ async function updateStatus(forceRefresh = false) {
     const isIpMatched = COMPANY_IPS.includes(currentIP);
 
     if (isIpMatched) {
-      if (forceRefresh || lastRangeStatus !== "有效打卡區") {
-        lastRangeStatus = "有效打卡區";
-        statusInfo.style.background = "#2ecc71";
-        statusInfo.textContent = "有效打卡區";
-        setButtonsLock(false, "上班", "下班");
-      }
-      statusLoaded = true;
-      return;
-    }
-
-    const lat = lastGPS ? lastGPS.lat : "";
-    const lng = lastGPS ? lastGPS.lng : "";
-    
-    const res = await fetch(
-      `${API_ENDPOINT}?action=check&lat=${lat}&lng=${lng}&ip=${encodeURIComponent(currentIP)}`
-    );
-
-    const data = await res.json();
-    const newStatus = data.rangeStatus;
-    if (!newStatus) return;
-
-    if (!forceRefresh && newStatus === lastRangeStatus) return;
-    lastRangeStatus = newStatus;
-
-    if (newStatus === "有效打卡區") {
+      // IP 符合：有效打卡區
+      lastRangeStatus = "有效打卡區";
       statusInfo.style.background = "#2ecc71";
       statusInfo.textContent = "有效打卡區";
       setButtonsLock(false, "上班", "下班");
     } else {
+      // IP 不符：直接判定為無效打卡區，不需問後端 GPS 距離
+      lastRangeStatus = "無效打卡區";
       statusInfo.style.background = "#e74c3c";
       statusInfo.textContent = "無效打卡區";
 
