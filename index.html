@@ -215,8 +215,7 @@ async function updateStatus(forceRefresh = false) {
       setButtonsLock(false, "上班", "下班");
     } else {
       statusInfo.style.background = "#e74c3c";
-      const distText = data.distance ? ` (${data.distance} 公尺)` : "";
-      statusInfo.textContent = "無效打卡區" + distText;
+      statusInfo.textContent = "無效打卡區"; // 移除原本的 distText 串接
 
       if (isManager) {
         setButtonsLock(false, "上班 (主管)", "下班 (主管)");
