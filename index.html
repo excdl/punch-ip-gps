@@ -172,6 +172,15 @@ async function initUser(){
 
 /* ===== 狀態 (前端直接比對 IP 白名單) ===== */
 async function updateStatus(forceRefresh = false) {
+  // 🚀 如果使用者基本資料還沒載入完，先不處理狀態與解鎖按鈕
+  if (!dataReady) {
+    statusInfo.textContent = "使用者資料載入中…";
+    statusInfo.style.background = "#95a5a6";
+    setButtonsLock(true, "載入中...", "載入中...");
+    statusLoaded = false;
+    return;
+  }
+
   if (!cachedIP && !lastGPS) {
     statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
@@ -215,7 +224,7 @@ async function updateStatus(forceRefresh = false) {
       setButtonsLock(false, "上班", "下班");
     } else {
       statusInfo.style.background = "#e74c3c";
-      statusInfo.textContent = "無效打卡區"; // 移除原本的 distText 串接
+      statusInfo.textContent = "無效打卡區";
 
       if (isManager) {
         setButtonsLock(false, "上班 (主管)", "下班 (主管)");
@@ -425,18 +434,26 @@ window.onload = async () => {
   initGPSWatcher();
 
   try {
+    // 1. 先完整抓到 LIFF 使用者名稱與 ID
     await initUser();
+    
+    // 2. 資料準備就緒，此時才允許狀態更新去解鎖按鈕
     dataReady = true;
 
+    // 3. 同步讀取今日紀錄與主管清單
     await Promise.all([
       updateTodayRecords(),
       loadManagers()
     ]);
     
+    // 4. 最後更新打卡狀態
     await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
+    userInfo.textContent = "初始化失敗";
+    statusInfo.textContent = "請重新整理網頁";
+    statusInfo.style.background = "#e74c3c";
   }
 };
 </script>
