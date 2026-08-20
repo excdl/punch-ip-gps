@@ -174,7 +174,7 @@ async function initUser(){
 async function updateStatus(forceRefresh = false) {
   // 🚀 如果使用者基本資料還沒載入完，先不處理狀態與解鎖按鈕
   if (!dataReady) {
-    statusInfo.textContent = "使用者資料載入中…";
+    statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
     setButtonsLock(true, "載入中...", "載入中...");
     statusLoaded = false;
