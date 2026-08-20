@@ -173,7 +173,7 @@ async function initUser(){
 /* ===== 狀態 (前端直接比對 IP 白名單) ===== */
 async function updateStatus(forceRefresh = false) {
   if (!dataReady) {
-    statusInfo.textContent = "使用者資料載入中…";
+    statusInfo.textContent = "網路與定位初始化中…";
     statusInfo.style.background = "#95a5a6";
     setButtonsLock(true, "載入中...", "載入中...");
     statusLoaded = false;
