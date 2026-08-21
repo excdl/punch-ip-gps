@@ -292,18 +292,18 @@ async function sendSelfMessage(record){
   }
 }
 
-/* ===== 打卡函式（含點擊瞬間即時驗證 IP 與狀態） ===== */
+/* ===== 打卡函式（含逾時控制與防卡死機制） ===== */
 async function clockInOut(status){
   if(!dataReady || !statusLoaded){
-    Swal.fire({icon:"info",title:"資料讀取中或定位中",timer:1500,showConfirmButton:false});
+    Swal.fire({icon:"info", title:"資料讀取中或定位中", timer:1500, showConfirmButton:false});
     return;
   }
 
-  // 🚀 關鍵優化：在點擊打卡的瞬間，強制重新抓取一次最新 IP，防止使用者離開公司後用舊快取打卡
-  const btn = status==="上班"?btnStart:btnEnd;
+  const btn = status === "上班" ? btnStart : btnEnd;
   btn.disabled = true;
   const originalText = btn.textContent;
 
+  // 1. 驗證 IP 階段的載入框
   Swal.fire({
       html: `
           <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -322,10 +322,15 @@ async function clockInOut(status){
 
   let currentIP = "";
   try {
-    const resIP = await fetch("https://api.ipify.org?format=json");
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // IP 檢查 5 秒逾時
+    
+    const resIP = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+    clearTimeout(timeoutId);
+    
     const dataIP = await resIP.json();
     currentIP = dataIP.ip;
-    cachedIP = currentIP; // 更新快取
+    cachedIP = currentIP;
   } catch(err) {
     console.warn("即時取得 IP 失敗，改用快取 IP:", err);
     currentIP = getIP();
@@ -333,7 +338,6 @@ async function clockInOut(status){
 
   const isIpMatched = COMPANY_IPS.includes(currentIP.trim());
 
-  // 🛑 嚴格防護：如果最新 IP 不在白名單內，且不是主管，直接阻擋打卡！
   if (!isIpMatched && !isManager) {
     Swal.fire({
       icon: "warning",
@@ -344,11 +348,11 @@ async function clockInOut(status){
     });
     btn.textContent = originalText;
     btn.disabled = false;
-    updateStatus(true); // 同時更新畫面狀態為無效打卡區
+    updateStatus(true);
     return;
   }
 
-  // 🚀 通過驗證後，繼續原本的打卡動畫與送出流程
+  // 2. 雲端同步階段的載入框
   Swal.fire({
       html: `
           <div style="padding: 15px 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
@@ -366,8 +370,12 @@ async function clockInOut(status){
   });
 
   try{
+    // 建立 15 秒逾時控制器（防止 Google Apps Script 卡死無限轉圈）
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000);
+
     const res = await fetch(API_ENDPOINT, {
-      method:"POST",
+      method: "POST",
       body: JSON.stringify({
         userId, 
         userName, 
@@ -375,9 +383,11 @@ async function clockInOut(status){
         gps: lastGPS || { lat: "", lng: "" }, 
         status,
         ipMatched: isIpMatched
-      })
+      }),
+      signal: controller.signal
     });
 
+    clearTimeout(timeoutId);
     const data = await res.json();
     
     if(data && data.message){
@@ -391,7 +401,7 @@ async function clockInOut(status){
       };
 
       if(data.message.includes("錯誤")){
-        Swal.fire({icon:"error",title: data.message, timer: 2000, showConfirmButton: false});
+        Swal.fire({icon:"error", title: data.message, timer: 2000, showConfirmButton: false});
       } else if(data.rangeStatus === "有效打卡區"){
         Swal.fire({icon:"success", title: data.message || "打卡成功", timer: 2000, showConfirmButton: false});
       } else {
@@ -407,8 +417,13 @@ async function clockInOut(status){
 
   }catch(err){
     console.error("打卡發生錯誤:", err);
-    Swal.fire({icon:"error", title:"打卡連線失敗", text: "請檢查網路狀態後再試一次", timer: 2000, showConfirmButton: false});
+    let errorMsg = "請檢查網路狀態後再試一次";
+    if (err.name === 'AbortError') {
+      errorMsg = "連線逾時，伺服器回應過久，請稍後至今日紀錄確認";
+    }
+    Swal.fire({icon:"error", title:"打卡連線失敗", text: errorMsg, timer: 2500, showConfirmButton: false});
   } finally {
+    // 3. 確保無論成功、失敗或逾時，按鈕一定會解鎖、轉圈必定會關閉
     btn.textContent = originalText;
     btn.disabled = false;
   }
