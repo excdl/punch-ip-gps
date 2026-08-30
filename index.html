@@ -341,10 +341,15 @@ async function sendSelfMessage(record, maxRetries = 3) {
         }
     };
 
-     console.log("LIFF 訊息傳送成功", response);
+    // 2. 透過 try...catch 執行發送並處理例外狀況
+    try {
+        const response = await liff.sendMessages([flexMessage]);
+        console.log("LIFF 訊息傳送成功", response);
+        return true;
     } catch (err) {
         // 3. 詳細印出錯誤訊息，方便在開發者工具（console）中偵錯
         console.error("LIFF 訊息傳送失敗詳細原因:", err.code, err.message, err);
+        return false;
     }
 }
     
