@@ -323,7 +323,7 @@ async function sendSelfMessage(record, maxRetries = 3) {
     // 2. 組合 Flex Message，並使用 String() 確保所有欄位皆為字串型態，避免 API 拒絕
     const flexMessage = {
         type: 'flex',
-        altText: `打卡通知：${String(record.userName)} ${String(record.status)}`,
+       altText: `【打卡通知】${record.status}成功`,
         contents: {
             type: "bubble",
             header: {
