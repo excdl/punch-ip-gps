@@ -305,7 +305,7 @@ window.onload = async () => {
   }
 };
 
-/* ===== LINE App 專用：高穩定度打卡 Flex Message 發送 ===== */
+/* ===== LINE App 專用：高穩定度打卡 Flex Message 發送 (已整合防呆與重試機制) ===== */
 async function sendSelfMessage(record, maxRetries = 3) {
     // 1. 確保身處 LINE App 內且已經登入
     if (!liff.isInClient()) {
@@ -320,39 +320,56 @@ async function sendSelfMessage(record, maxRetries = 3) {
 
     let headerColor = record.status === "下班" ? "#2ecc71" : "#3498db"; 
     
+    // 2. 組合 Flex Message，並使用 String() 確保所有欄位皆為字串型態，避免 API 拒絕
     const flexMessage = {
         type: 'flex',
-        altText: `【打卡通知】${record.status}成功`,
+        altText: `打卡通知：${String(record.userName)} ${String(record.status)}`,
         contents: {
             type: "bubble",
             header: {
                 type: "box", layout: "vertical",
-                contents: [{ type: "text", text: `${record.userName} 已打卡`, weight: "bold", size: "lg", color: "#ffffff" }],
+                contents: [{ type: "text", text: `${String(record.userName)} 已打卡`, weight: "bold", size: "lg", color: "#ffffff" }],
                 backgroundColor: headerColor, paddingAll: "12px"
             },
             body: {
                 type: "box", layout: "vertical", spacing: "md",
                 contents: [
-                    { type: "text", text: `狀態：${record.status}`, size: "md" },
-                    { type: "text", text: `時間：${record.date} ${record.time}`, size: "md" },
-                    { type: "text", text: `網路：${record.netType}`, size: "md" }
+                    { type: "text", text: `狀態：${String(record.status)}`, size: "md" },
+                    { type: "text", text: `時間：${String(record.date)} ${String(record.time)}`, size: "md" },
+                    { type: "text", text: `網路：${String(record.netType)}`, size: "md" }
                 ]
             }
         }
     };
 
-    // 2. 透過 try...catch 執行發送並處理例外狀況
-    try {
-        const response = await liff.sendMessages([flexMessage]);
-        console.log("LIFF 訊息傳送成功", response);
-        return true;
-    } catch (err) {
-        // 3. 詳細印出錯誤訊息，方便在開發者工具（console）中偵錯
-        console.error("LIFF 訊息傳送失敗詳細原因:", err.code, err.message, err);
-        return false;
+    // 3. 帶有重試機制的發送流程（應對 LINE App 內網路瞬間不穩）
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await liff.sendMessages([flexMessage]);
+            console.log("LIFF 訊息傳送成功", response);
+            
+            // 成功後短暫停頓
+            await new Promise(r => setTimeout(r, 500));
+            return; 
+            
+        } catch (err) {
+            console.error(`LIFF 訊息傳送失敗 (第 ${attempt}/${maxRetries} 次嘗試):`, err.code, err.message, err);
+            
+            // 若為權限錯誤 (403)，重試也無效，直接跳出提示
+            if (err.code === 403 || (err.message && err.message.includes('permissions'))) {
+                console.error("請檢查 LINE Developers 後台是否已勾選 chat_message.write 權限！");
+                break;
+            }
+
+            if (attempt === maxRetries) {
+                console.error("已達最大重試次數，打卡訊息發送失敗。");
+            } else {
+                // 遞增等待時間（例如第1次等1秒，第2次等2秒）後再試
+                await new Promise(r => setTimeout(r, attempt * 1000));
+            }
+        }
     }
 }
-    
 // ===== 打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
@@ -506,91 +523,3 @@ document.getElementById("btnApprove").onclick = () => {
 
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
