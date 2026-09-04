@@ -370,7 +370,7 @@ async function sendSelfMessage(record, maxRetries = 3) {
         }
     }
 }
-// ===== 改良後的打卡函式（帶逾時保護與防呆） =====
+// ===== 打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -404,7 +404,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 顯示轉圈圈中
     Swal.fire({
         html: `
             <div style="padding: 15px 0; text-align: center;">
@@ -422,50 +421,31 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     let apiData = null;
     try {
-        // 建立 AbortController 設定 10 秒逾時，避免無限轉圈
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 10000);
-
         const res = await fetch(API_ENDPOINT, {
             method: "POST",
-            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup }),
-            signal: controller.signal
+            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
         });
-        
-        clearTimeout(timeoutId);
-
-        // 檢查回應是否為正確的 JSON 格式
-        const contentType = res.headers.get("content-type");
-        if (contentType && contentType.includes("application/json")) {
-            apiData = await res.json();
-        } else {
-            // 如果 GAS 部署權限跑掉或回傳了 Google 登入 HTML 頁面
-            throw new Error("伺服器回傳格式錯誤（可能是部署權限失效）");
-        }
-
+        apiData = await res.json();
     } catch(err) {
-        console.error("打卡請求失敗或逾時：", err);
-        const isTimeout = err.name === 'AbortError';
-        apiData = { 
-            message: isTimeout ? "連線逾時：伺服器回應過久，請至下方「今日打卡紀錄」確認是否已打卡成功" : "網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" 
-        };
+        console.error(err);
+        apiData = { message:"網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
     }
 
-    Swal.close(); // 強制關閉轉圈圈
+    Swal.close(); 
 
-    if (apiData && apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新") || apiData.message.includes("完成"))) {
+    if (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新"))) {
         sendSelfMessage({
             userName: window.userName,
             status: status,
-            date: apiData.date || getTodayString(),
-            time: apiData.time || "剛剛",
+            date: apiData.date,
+            time: apiData.time,
             netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
         }).catch(err => console.error("背景傳送訊息失敗", err));
 
         Swal.fire({
             icon: "success",
             title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${apiData.date || ""} ${apiData.time || ""}</span></div>`,
+            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${apiData.date} ${apiData.time}</span></div>`,
             showConfirmButton: false, 
             timer: 1800, 
             backdrop: "rgba(0,0,0,0.5)",
