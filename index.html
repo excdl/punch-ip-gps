@@ -370,7 +370,7 @@ async function sendSelfMessage(record, maxRetries = 3) {
         }
     }
 }
-// ===== 打卡函式 =====
+// ===== 打卡函式 (已修復轉圈圈當掉問題) =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -404,6 +404,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
+    // 顯示轉圈圈 Loading
     Swal.fire({
         html: `
             <div style="padding: 15px 0; text-align: center;">
@@ -431,17 +432,25 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
     }
 
+    // 🔴 務必先關閉 Loading 遮罩，確保畫面不會卡住
     Swal.close(); 
 
     if (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新"))) {
-        sendSelfMessage({
-            userName: window.userName,
-            status: status,
-            date: apiData.date,
-            time: apiData.time,
-            netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-        }).catch(err => console.error("背景傳送訊息失敗", err));
+        
+        // 🛡️ 使用 try...catch 包覆背景訊息發送，避免 LIFF 傳送失敗導致後續流程異常
+        try {
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: apiData.date,
+                time: apiData.time,
+                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+            });
+        } catch (err) {
+            console.error("背景傳送訊息失敗", err);
+        }
 
+        // 顯示成功提示
         Swal.fire({
             icon: "success",
             title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
@@ -461,6 +470,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
+    // 重新整理今日打卡清單
     updateTodayRecords();
 }
 
