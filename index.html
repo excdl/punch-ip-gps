@@ -493,13 +493,26 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         method: "POST",
         body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
     })
-    .then(res => res.json())
+    .then(async res => {
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            console.error("後端回傳的不是有效 JSON:", text);
+            throw new Error("後端回傳格式錯誤");
+        }
+    })
     .then(apiData => {
-        const msg = apiData?.message || "";
+        const msg = apiData?.message || "操作完成";
         const resDate = apiData?.date || getTodayString();
-        const resTime = fixTimeFormat(apiData?.time) || new Date().toLocaleTimeString("zh-TW", { hour12: false });
+        let resTime = new Date().toLocaleTimeString("zh-TW", { hour12: false });
+        
+        try {
+            if (apiData?.time) resTime = fixTimeFormat(apiData.time);
+        } catch (err) {
+            console.warn("時間格式解析警告:", err);
+        }
 
-        // 判斷後端回傳的訊息是否為成功或更新成功
         if (msg.includes("成功")) {
             Swal.fire({
                 icon: "success",
@@ -511,7 +524,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
                 customClass: { popup: 'custom-swal-popup' }
             });
 
-            // 成功才將紀錄插入前端畫面與快取
             appendOptimisticRecord({
                 status: status,
                 time: resTime,
@@ -530,7 +542,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             } catch (e) {}
 
         } else {
-            // 後端擋下（例如：重複打卡、上限、順序錯誤等），跳出警告提示並重新同步畫面
             Swal.fire({
                 icon: "warning",
                 title: "打卡限制提示",
@@ -538,21 +549,18 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
                 confirmButtonText: "確定",
                 customClass: { popup: 'custom-swal-popup' }
             });
-            
-            // 立即向後端同步最新狀態，修正前端畫面
             updateTodayRecords(true);
         }
     })
     .catch(err => {
-        console.error("背景同步失敗:", err);
+        console.error("前端解析或連線發生錯誤:", err);
         Swal.fire({
             icon: "error",
             title: "連線異常",
-            text: "無法連線至伺服器，請稍後再試。",
+            text: `發生錯誤 (${err.message || "未知原因"})，請檢查 F12 主控台。`,
             confirmButtonText: "確定"
         });
     });
-}
 
 function getTodayString() {
     const now = new Date();
