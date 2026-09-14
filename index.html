@@ -398,7 +398,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 極速響應打卡函式（優化顯示速度） =====
+// ===== 帶圓形漸層動畫的極速打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -436,81 +436,113 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     const fallbackDate = customDate ? customDate.replace(/[-\/]/g, "/") : nowObj.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
     const fallbackTime = customTime ? customTime : nowObj.toLocaleTimeString("zh-TW", { hour12: false });
 
-    // 啟動轉圈動畫提示
+    // 1. 啟動圓形漸層動畫
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
 
-    if (wrapper && circle && text) {
+    let animationCompleted = false;
+    const animationPromise = new Promise((resolve) => {
+        if (!wrapper || !circle || !text) {
+            resolve();
+            return;
+        }
         wrapper.style.display = "flex";
         text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
+
+        const colors = {
+            上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
+            下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
+            補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
+        };
+        const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : (colors[status] || colors.上班);
+
         const radius = 50;
         const circumference = 2 * Math.PI * radius;
         circle.style.strokeDasharray = circumference;
-        circle.style.strokeDashoffset = 0;
+        circle.style.strokeDashoffset = circumference;
+
+        let progress = 0;
+        function animate() {
+            if (animationCompleted) return;
+            progress = Math.min(progress + 0.02, 1);
+            circle.style.strokeDashoffset = circumference * (1 - progress);
+
+            const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
+            const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
+            const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
+            circle.style.stroke = `rgb(${rC},${gC},${bC})`;
+
+            if(progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                resolve();
+            }
+        }
+        requestAnimationFrame(animate);
+    });
+
+    // 2. 發送 API 請求
+    const apiPromise = fetch(API_ENDPOINT, {
+        method: "POST",
+        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+    }).then(res => res.json()).catch(() => ({ message: "網路連線異常，請至下方紀錄確認" }));
+
+    // 同時等待 API 回應以及至少跑一點動畫，確保視覺流暢
+    const [apiData] = await Promise.all([
+        apiPromise,
+        new Promise(r => setTimeout(r, 400)) // 最低確保動畫顯示 400ms 避免閃爍
+    ]);
+
+    animationCompleted = true;
+    if (wrapper) {
+        wrapper.style.transition = "opacity 0.15s";
+        wrapper.style.opacity = 0;
+        setTimeout(() => {
+            wrapper.style.display = "none";
+            wrapper.style.opacity = 1;
+        }, 150);
     }
 
-    // 發送後端請求
-    try {
-        const res = await fetch(API_ENDPOINT, {
-            method: "POST",
-            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+    const resDate = apiData?.date || fallbackDate;
+    const resTime = apiData?.time || fallbackTime;
+    const resMessage = apiData?.message || "打卡完成";
+
+    // 3. 根據結果極速彈出視窗
+    if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
+        // 背景非同步發送 LIFF 訊息
+        sendSelfMessage({
+            userName: window.userName,
+            status: status,
+            date: resDate,
+            time: resTime,
+            netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
         });
-        const apiData = await res.json();
 
-        // 關閉轉圈動畫
-        if (wrapper) {
-            wrapper.style.display = "none";
-        }
+        Swal.fire({
+            icon: "success",
+            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
+            showConfirmButton: false, 
+            timer: 1400, 
+            backdrop: "rgba(0,0,0,0.5)",
+            customClass: { popup: 'custom-swal-popup' }
+        });
 
-        const resDate = apiData?.date || fallbackDate;
-        const resTime = apiData?.time || fallbackTime;
-        const resMessage = apiData?.message || "打卡完成";
-
-        if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
-            // 背景非同步發送 LIFF 訊息，不阻塞畫面彈窗
-            sendSelfMessage({
-                userName: window.userName,
-                status: status,
-                date: resDate,
-                time: resTime,
-                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-            });
-
-            // 立即顯示成功彈窗
-            Swal.fire({
-                icon: "success",
-                title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-                html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
-                showConfirmButton: false, 
-                timer: 1400, 
-                backdrop: "rgba(0,0,0,0.5)",
-                customClass: { popup: 'custom-swal-popup' }
-            });
-
-            appendOptimisticRecord({
-                status: status,
-                time: resTime,
-                ip: ip,
-                isMakeup: isMakeup
-            });
-        } else {
-            Swal.fire({
-                icon: "error",
-                title: "打卡受阻",
-                html: `<span style="color: #c0392b; font-weight: bold; font-size: 15px;">${resMessage}</span>`,
-                confirmButtonText: "確定",
-                backdrop: "rgba(0,0,0,0.5)",
-                customClass: { popup: 'custom-swal-popup' }
-            });
-        }
-    } catch (err) {
-        if (wrapper) wrapper.style.display = "none";
+        appendOptimisticRecord({
+            status: status,
+            time: resTime,
+            ip: ip,
+            isMakeup: isMakeup
+        });
+    } else {
         Swal.fire({
             icon: "error",
-            title: "網路異常",
-            html: `<span style="color: #c0392b;">網路連線異常，請至下方紀錄確認</span>`,
-            confirmButtonText: "確定"
+            title: "打卡受阻",
+            html: `<span style="color: #c0392b; font-weight: bold; font-size: 15px;">${resMessage}</span>`,
+            confirmButtonText: "確定",
+            backdrop: "rgba(0,0,0,0.5)",
+            customClass: { popup: 'custom-swal-popup' }
         });
     }
 
