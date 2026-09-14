@@ -432,12 +432,11 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 準備預先顯示的時間 (讓彈跳視窗在極短時間內彈出，不須枯等動畫跑完)
     const nowObj = new Date();
     const fallbackDate = customDate ? customDate.replace(/[-\/]/g, "/") : nowObj.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
     const fallbackTime = customTime ? customTime : nowObj.toLocaleTimeString("zh-TW", { hour12: false });
 
-    // 快速圓形動畫起始（縮短動畫總時長，提升速度感）
+    // 啟動轉圈動畫提示
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
@@ -448,10 +447,10 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const radius = 50;
         const circumference = 2 * Math.PI * radius;
         circle.style.strokeDasharray = circumference;
-        circle.style.strokeDashoffset = 0; // 瞬間打滿或加速跑完
+        circle.style.strokeDashoffset = 0;
     }
 
-    // 立即發送 API 請求給後端
+    // 發送後端請求
     try {
         const res = await fetch(API_ENDPOINT, {
             method: "POST",
@@ -459,7 +458,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
         const apiData = await res.json();
 
-        // 關閉圓形等待動畫
+        // 關閉轉圈動畫
         if (wrapper) {
             wrapper.style.display = "none";
         }
@@ -469,7 +468,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         const resMessage = apiData?.message || "打卡完成";
 
         if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
-            // 背景非同步發送 LIFF 訊息
+            // 背景非同步發送 LIFF 訊息，不阻塞畫面彈窗
             sendSelfMessage({
                 userName: window.userName,
                 status: status,
@@ -478,7 +477,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
                 netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
             });
 
-            // 以極快速度彈出成功視窗
+            // 立即顯示成功彈窗
             Swal.fire({
                 icon: "success",
                 title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
@@ -518,7 +517,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     updateTodayRecords(true);
 }
 
-// ===== 立即在前端畫面插入一筆紀錄（達成秒顯示） =====
+// ===== 立即在前端畫面插入一筆紀錄 =====
 function appendOptimisticRecord(newRecord) {
     let cachedRecords = [];
     try {
