@@ -201,26 +201,14 @@ const todayRecords = document.getElementById("todayRecords");
 window.userReady = false;
 window.allowRemote = false;
 
-// ====== 更新日期時間與星期 ======
+// ====== 更新日期時間 ======
 function updateDateTime() {
     const now = new Date();
-    
-    const timeHour = document.getElementById("timeHour");
-    const timeMin = document.getElementById("timeMin");
-    const timeSec = document.getElementById("timeSec");
-    
-    if (timeHour) timeHour.textContent = String(now.getHours()).padStart(2, '0');
-    if (timeMin) timeMin.textContent = String(now.getMinutes()).padStart(2, '0');
-    if (timeSec) timeSec.textContent = String(now.getSeconds()).padStart(2, '0');
-    
-    if (headerDate) {
-        const dateStr = now.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' });
-        const weekdayStr = now.toLocaleDateString("zh-TW", { weekday: 'long' });
-        headerDate.textContent = `${dateStr} (${weekdayStr})`;
-    }
+    document.getElementById("dateTime").textContent = now.toLocaleString("zh-TW", { hour12: false });
 }
 setInterval(updateDateTime, 1000);
 updateDateTime();
+
 
 // ====== 按鈕鎖定控制 ======
 function setButtonsLock(locked, startText = "上班", endText = "下班") {
