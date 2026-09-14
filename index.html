@@ -188,14 +188,16 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
 </div>
  
 <script>
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzYBRHv9aLw_uIxbXot_XFDDBBjP2_3rEH3b6ScktA98Xt02HvZICG9g0ECS20cJGJv/exec";
-const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwG47N38cIpfYosr0MIv7AR35RG5s_vZGPZ3w8VnVuoN1TqYoACUIfvcCpEXoyqMFyrQA/exec";
+const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48"];
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
 
 const userInfo = document.getElementById("userInfo");
+const userAvatar = document.getElementById("userAvatar");
 const statusInfo = document.getElementById("statusInfo");
+const headerDate = document.getElementById("headerDate");
 const btnStart = document.getElementById("btnStart");
 const btnEnd = document.getElementById("btnEnd");
 const todayRecords = document.getElementById("todayRecords");
@@ -203,10 +205,17 @@ const todayRecords = document.getElementById("todayRecords");
 window.userReady = false;
 window.allowRemote = false;
 
-// ====== 更新日期時間 ======
+// ====== 更新日期時間與星期 ======
 function updateDateTime() {
     const now = new Date();
-    document.getElementById("dateTime").textContent = now.toLocaleString("zh-TW", { hour12: false });
+    
+    document.getElementById("timeHour").textContent = String(now.getHours()).padStart(2, '0');
+    document.getElementById("timeMin").textContent = String(now.getMinutes()).padStart(2, '0');
+    document.getElementById("timeSec").textContent = String(now.getSeconds()).padStart(2, '0');
+    
+    const dateStr = now.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' });
+    const weekdayStr = now.toLocaleDateString("zh-TW", { weekday: 'long' });
+    headerDate.textContent = `${dateStr} (${weekdayStr})`;
 }
 setInterval(updateDateTime, 1000);
 updateDateTime();
@@ -238,9 +247,38 @@ async function preloadIP() {
     }
 }
 
+// ====== 本地快取讀取機制 (秒開畫面與打卡紀錄) ======
+function loadUserFromCache() {
+    const cachedUserId = localStorage.getItem("cached_userId");
+    const cachedUserName = localStorage.getItem("cached_userName");
+    const cachedPictureUrl = localStorage.getItem("cached_pictureUrl");
+
+    if (cachedUserId) {
+        window.userId = cachedUserId;
+        window.userName = cachedUserName || "使用者";
+        userInfo.textContent = `${window.userName} 您好`;
+        
+        if (cachedPictureUrl) {
+            userAvatar.innerHTML = `<img src="${cachedPictureUrl}" alt="avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        } else {
+            userAvatar.textContent = window.userName.charAt(0);
+        }
+    }
+
+    // 優先讀取 sessionStorage 中的打卡紀錄進行秒渲染
+    const cachedRecords = sessionStorage.getItem("cached_today_records");
+    if (cachedRecords) {
+        try {
+            renderRecords(JSON.parse(cachedRecords));
+        } catch (e) {
+            console.error("解析快取紀錄失敗", e);
+        }
+    }
+}
+
 // ====== 初始化 LIFF 使用者 ======
 async function initUser() {
-    await liff.init({ liffId: "2010795326-ID1oydWL" });
+    await liff.init({ liffId: "2008520938-4018BD8v" });
     if (!liff.isLoggedIn()) {
         await liff.login();
         return;
@@ -250,6 +288,17 @@ async function initUser() {
     window.userName = profile.displayName;
 
     userInfo.textContent = `${window.userName} 您好`;
+    
+    if (profile.pictureUrl) {
+        userAvatar.innerHTML = `<img src="${profile.pictureUrl}" alt="avatar" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+        localStorage.setItem("cached_pictureUrl", profile.pictureUrl);
+    } else if (window.userName) {
+        userAvatar.textContent = window.userName.charAt(0);
+    }
+
+    localStorage.setItem("cached_userId", window.userId);
+    localStorage.setItem("cached_userName", window.userName);
+
     document.getElementById("btnApprove").style.display = MANAGERS.includes(window.userId) ? "block" : "none";
 }
 
@@ -279,7 +328,7 @@ async function updateStatus(forceRefresh = false) {
     window.allowRemote = remoteAllowed;
 
     if (remoteAllowed) {
-        statusInfo.textContent = "有效打卡區 (異地)";
+        statusInfo.textContent = "有效打卡區(異地)";
         statusInfo.style.background = "#2ecc71";
         setButtonsLock(false, "上班", "下班");
     } else {
@@ -317,26 +366,32 @@ function fixTimeFormat(t) {
     return t;
 }
 
-// ====== 初始化載入 ======
+// ====== 初始化載入 (加入快取秒開機制) ======
 window.onload = async () => {
-  statusInfo.textContent = "正在檢查網路狀態...";
+  statusInfo.textContent = "檢查中...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
+  // 1. 優先從 LocalStorage / SessionStorage 載入畫面，達到秒開效果
+  loadUserFromCache();
+
   try {
+    // 2. 平行執行 LIFF 初始化與 IP 預載入
     await Promise.all([
       initUser(),
       preloadIP()
     ]);
     
     await updateStatus(true);
-    await updateTodayRecords();
+    await updateTodayRecords(false);
     await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
-    userInfo.textContent = "初始化失敗";
-    statusInfo.textContent = "請重新整理網頁";
+    if (!window.userId) {
+        userInfo.textContent = "初始化失敗";
+    }
+    statusInfo.textContent = "重整失敗";
     statusInfo.style.background = "#e74c3c";
   }
 };
@@ -477,6 +532,30 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             console.error("背景傳送訊息失敗", err);
         }
 
+        // ==========================================
+        // 【優化點 1】樂觀更新：立刻將新打卡紀錄加入前端畫面
+        // ==========================================
+        try {
+            const cachedRecords = sessionStorage.getItem("cached_today_records");
+            let currentRecords = cachedRecords ? JSON.parse(cachedRecords) : [];
+            
+            // 建立一筆新的紀錄物件塞入陣列前端
+            const newRecord = {
+                status: status,
+                date: apiData.date || getTodayString(),
+                time: apiData.time || new Date().toLocaleTimeString("zh-TW", { hour12: false }),
+                ip: ip,
+                isMakeup: isMakeup
+            };
+            
+            // 避免重複新增，若已有相同狀態可選擇更新或直接Push
+            currentRecords.unshift(newRecord);
+            sessionStorage.setItem("cached_today_records", JSON.stringify(currentRecords));
+            renderRecords(currentRecords);
+        } catch (e) {
+            console.error("本地渲染更新失敗", e);
+        }
+
         Swal.fire({
             icon: "success",
             title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
@@ -496,9 +575,13 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
+    // ==========================================
+    // 【優化點 2】將原本的 400ms 延長至 1500ms
+    // 給予 Google Sheets 後端足夠的時間寫入
+    // ==========================================
     setTimeout(() => {
         updateTodayRecords(false);
-    }, 400);
+    }, 1500);
 }
 
 function getTodayString() {
@@ -573,6 +656,7 @@ document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 </script>
+
 
 </body>
 </html>
