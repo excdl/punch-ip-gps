@@ -8,185 +8,155 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
-#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
-#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
-#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
-.buttons-container {display:flex;gap:15px;width:100%;}
-.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
-
+.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,0.08);}
+#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;margin-bottom:5px;}
+#dateTime {font-size:22px;color:#7f8c8d;text-align:center;margin-bottom:15px;}
+#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;margin-bottom:20px;font-weight:bold;}
+.buttons-container {display:flex;gap:15px;width:100%;margin-bottom:20px;}
+.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:all 0.2s;}
 #btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
 #btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-
-button:disabled {opacity:0.5;cursor:not-allowed;}
+button:disabled {opacity:0.5;cursor:not-allowed;box-shadow:none;}
 
 /* ====== 優化後的今日打卡紀錄樣式 ====== */
 #todayRecordsContainer {
     width: 100%;
-    background: #fafbfc;
-    border-radius: 16px;
-    padding: 16px;
-    border: 1px solid #e1e8ed;
-    box-sizing: border-box;
+    margin-top: 15px;
+    border-top: 1px solid #eee;
+    padding-top: 15px;
 }
 .records-title {
     font-size: 16px;
     font-weight: bold;
     color: #34495e;
-    margin-bottom: 12px;
+    margin-bottom: 10px;
+}
+.records-list {
     display: flex;
-    align-items: center;
-    gap: 6px;
+    flex-direction: column;
+    gap: 8px;
+    max-height: 200px;
+    overflow-y: auto;
 }
 .record-item {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
+    background: #f8f9fa;
+    padding: 10px 14px;
+    border-radius: 8px;
     border-left: 5px solid #3498db;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    transition: transform 0.2s;
-}
-.record-item:last-child {
-    margin-bottom: 0;
+    font-size: 15px;
 }
 .record-info {
     display: flex;
     flex-direction: column;
-    gap: 2px;
 }
 .record-status {
-    font-size: 16px;
     font-weight: bold;
     color: #2c3e50;
 }
 .record-details {
-    font-size: 13px;
+    font-size: 12px;
     color: #7f8c8d;
+    margin-top: 2px;
 }
 .record-time {
-    font-size: 18px;
     font-weight: bold;
-    color: #2c3e50;
+    font-size: 16px;
+}
+.records-empty {
+    text-align: center;
+    color: #95a5a6;
+    font-size: 14px;
+    padding: 15px 0;
 }
 .badge-makeup {
     background: #e67e22;
     color: white;
     font-size: 11px;
     padding: 2px 6px;
-    border-radius: 6px;
-    margin-left: 4px;
-    vertical-align: middle;
-}
-.records-empty {
-    text-align: center;
-    color: #95a5a6;
-    font-size: 15px;
-    padding: 15px 0;
+    border-radius: 4px;
+    margin-left: 6px;
 }
 
-#btnApprove {
-    margin-top:10px;
-    padding:12px 20px;
-    font-size:18px;
-    font-weight:bold;
-    border-radius:10px;
-    background:linear-gradient(145deg,#8e44ad,#663399);
-    color:white;
-    display:none;
-    width:100%;
-    cursor:pointer;
-    border:none;
-}
-#btnApprove:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-}
-
-/* ====== SweetAlert2 自訂現代化外觀覆寫 ====== */
-.swal2-popup.custom-swal-popup {
-    border-radius: 20px !important;
-    padding: 24px !important;
-    font-family: "Arial", "Noto Sans TC", sans-serif !important;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.2) !important;
-}
-.swal2-title {
-    font-size: 22px !important;
-    color: #2c3e50 !important;
-    font-weight: bold !important;
-}
-.swal2-html-container {
-    font-size: 16px !important;
-    color: #555 !important;
-}
-.swal2-styled.swal2-confirm {
-    background: linear-gradient(135deg, #3498db, #2980b9) !important;
-    border-radius: 10px !important;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    padding: 10px 24px !important;
-    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
-}
-
-/* 倒數動畫（全螢幕置中遮罩） */
+/* 圓形動畫遮罩 */
 #countdownWrapper {
-    display: none;
     position: fixed;
-    top: 0;
-    left: 0;
-    width: 100vw;
-    height: 100vh;
-    background: rgba(255, 255, 255, 0.85);
-    z-index: 9999;
-    flex-direction: column;
+    top: 0; left: 0; width: 100%; height: 100%;
+    background: rgba(255,255,255,0.9);
+    display: none;
     justify-content: center;
     align-items: center;
+    flex-direction: column;
+    z-index: 9999;
 }
-#circleProgress { 
-    fill: none; 
-    stroke-width: 12; 
-    stroke-linecap: round; 
+.circle-container {
+    position: relative;
+    width: 120px;
+    height: 120px;
 }
-#countdownText { 
-    margin-top: 15px;
+.circle-svg {
+    transform: rotate(-90deg);
+    width: 120px;
+    height: 120px;
+}
+.circle-bg {
+    fill: none;
+    stroke: #e0e0e0;
+    stroke-width: 10;
+}
+.circle-progress {
+    fill: none;
+    stroke-width: 10;
+    stroke-linecap: round;
+    transition: stroke-dashoffset 0.05s linear;
+}
+.circle-text {
+    position: absolute;
+    top: 0; left: 0; width: 100%; height: 100%;
+    display: flex;
+    justify-content: center;
+    align-items: center;
     font-size: 16px;
-    font-weight: bold; 
+    font-weight: bold;
     color: #2c3e50;
-    white-space: nowrap; 
 }
 </style>
 </head>
 <body>
-<div class="card">
-  <div id="userInfo">載入使用者資訊中...</div>
-  <div id="statusInfo">網路與定位初始化中…</div>
-  <div id="dateTime">載入中…</div>
-  <div class="buttons-container">
-    <button id="btnStart" disabled>同步中…</button>
-    <button id="btnEnd" disabled>同步中…</button>
-  </div>
-  
-   <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
-<div id="countdownWrapper">
-    <svg width="120" height="120">
-        <circle cx="60" cy="60" r="50" stroke="#eee" stroke-width="12" fill="none"></circle>
-        <circle id="circleProgress" cx="60" cy="60" r="50" stroke="#3498db" stroke-width="12" fill="none" transform="rotate(-90 60 60)"></circle>
-    </svg>
-    <div id="countdownText">打卡中...</div>
-</div>
-    
-    <!-- 優化後的今日紀錄容器 -->
-  <div id="todayRecordsContainer">
-    <div class="records-title">📋 今日打卡紀錄</div>
-    <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
-  </div>
 
-  <button id="btnApprove">查看 | 簽核</button>
+<div class="card">
+    <div id="userInfo">載入中...</div>
+    <div id="dateTime">--/--/---- --:--:--</div>
+    <div id="statusInfo">檢查中...</div>
+
+    <div class="buttons-container">
+        <button id="btnStart" disabled>上班</button>
+        <button id="btnEnd" disabled>下班</button>
+    </div>
+
+    <button id="btnApprove" style="display:none; width:100%; padding:10px; background:#8e44ad; color:white; border:none; border-radius:10px; font-weight:bold; margin-bottom:15px; cursor:pointer;">審核異地補打卡</button>
+
+    <div id="todayRecordsContainer">
+        <div class="records-title">今日打卡紀錄</div>
+        <div id="todayRecords" class="records-list">
+            <div class="records-empty">載入中...</div>
+        </div>
+    </div>
 </div>
- 
+
+<!-- 圓形動畫遮罩結構 -->
+<div id="countdownWrapper">
+    <div class="circle-container">
+        <svg class="circle-svg">
+            <circle class="circle-bg" cx="60" cy="60" r="50"></circle>
+            <circle class="circle-progress" id="circleProgress" cx="60" cy="60" r="50"></circle>
+        </svg>
+        <div class="circle-text" id="countdownText">打卡中...</div>
+    </div>
+</div>
+
 <script>
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbx2Nmr2rt2aHWSWfc_QCxo2NQe3WQF0G_DN5marsWAFxr6SmcTINF1NWU6_Qb2sDyjo/exec";
 const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
@@ -202,7 +172,7 @@ const todayRecords = document.getElementById("todayRecords");
 
 window.userReady = false;
 window.allowRemote = false;
-let isProcessing = false; // 新增：防止重複點擊旗標
+let isProcessing = false; // 防止重複點擊旗標
 
 // ====== 更新日期時間 ======
 function updateDateTime() {
@@ -214,7 +184,7 @@ updateDateTime();
 
 // ====== 按鈕鎖定控制 ======
 function setButtonsLock(locked, startText = "上班", endText = "下班") {
-    if (isProcessing) return; // 處理中時不改變狀態
+    if (isProcessing) return; 
     btnStart.disabled = locked;
     btnEnd.disabled = locked;
     btnStart.textContent = startText;
@@ -222,13 +192,12 @@ function setButtonsLock(locked, startText = "上班", endText = "下班") {
     window.userReady = !locked;
 }
 
-// ====== 預載入與取得 IP (優化：加入簡單的時間戳記防舊快取) ======
+// ====== 預載入與取得 IP ======
 async function preloadIP() {
     const cachedItem = sessionStorage.getItem("myIP_cache");
     if (cachedItem) {
         try {
             const { ip, timestamp } = JSON.parse(cachedItem);
-            // 快取有效期限設為 90 秒，避免切換網路時抓到舊 IP
             if (Date.now() - timestamp < 90000) return ip;
         } catch (e) {}
     }
@@ -372,7 +341,7 @@ window.onload = async () => {
         ]);
     } else {
         statusInfo.textContent = "無法取得授權";
-        statusInfo.statusInfo.style.background = "#e74c3c";
+        statusInfo.style.background = "#e74c3c";
     }
   } catch (error) {
     console.error("初始化失敗", error);
@@ -412,9 +381,9 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 圓形漸層動畫打卡函式（加入防重複點擊） =====
+// ===== 圓形漸層動畫打卡函式（已修正：串接後端回應並進行錯誤攔截） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
-    if (isProcessing) return; // 防止重複觸發
+    if (isProcessing) return; 
     
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -429,7 +398,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     }
 
     isProcessing = true;
-    setButtonsLock(true, "處理中", "處理中"); // 鎖定按鈕
+    setButtonsLock(true, "處理中", "處理中"); 
 
     const ip = await preloadIP();
 
@@ -507,30 +476,8 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         requestAnimationFrame(animate);
     });
 
-    await animationPromise;
-
-    const successDate = fallbackDate;
-    const successTime = fallbackTime;
-
-    Swal.fire({
-        icon: "success",
-        title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-        html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${successDate} ${successTime}</span></div>`,
-        showConfirmButton: false, 
-        timer: 1600, 
-        backdrop: "rgba(0,0,0,0.5)",
-        customClass: { popup: 'custom-swal-popup' }
-    });
-
-    appendOptimisticRecord({
-        status: status,
-        time: successTime,
-        ip: ip,
-        isMakeup: isMakeup
-    });
-
-    // 4. 背景發送 API
-    fetch(API_ENDPOINT, {
+    // 2. 發送後端 API 請求
+    const apiPromise = fetch(API_ENDPOINT, {
         method: "POST",
         body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
     })
@@ -538,26 +485,63 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         if (!res.ok) throw new Error("API request failed");
         return res.json();
     })
-    .then(apiData => {
+    .catch(() => ({ message: "網路連線異常，請至下方紀錄確認", date: fallbackDate, time: fallbackTime }));
+
+    // 同時等待動畫跑完且取得 API 真實結果
+    const [_, apiData] = await Promise.all([animationPromise, apiPromise]);
+
+    const resDate = apiData?.date || fallbackDate;
+    const resTime = apiData?.time || fallbackTime;
+    const resMessage = apiData?.message || "打卡完成";
+
+    // 3. 根據後端回傳的訊息嚴格判斷成功或失敗
+    if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
+        // 發送 LIFF 訊息
         try {
             sendSelfMessage({
                 userName: window.userName,
                 status: status,
-                date: apiData?.date || successDate,
-                time: apiData?.time || successTime,
+                date: resDate,
+                time: resTime,
                 netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
             });
         } catch (e) {}
 
-        setTimeout(() => updateTodayRecords(true), 5000);
-    })
-    .catch(err => {
-        console.error("背景同步失敗:", err);
-    })
-    .finally(() => {
-        isProcessing = false;
-        setButtonsLock(false, "上班", "下班"); // 解除按鈕鎖定
-    });
+        Swal.fire({
+            icon: "success",
+            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
+            showConfirmButton: false, 
+            timer: 1600, 
+            backdrop: "rgba(0,0,0,0.5)",
+            customClass: { popup: 'custom-swal-popup' }
+        });
+
+        // 只有成功才新增至前端畫面快取
+        appendOptimisticRecord({
+            status: status,
+            time: resTime,
+            ip: ip,
+            isMakeup: isMakeup
+        });
+    } else {
+        // ❌ 如果後端擋下（例如超出 3 次、順序顛倒等），彈出紅色警告提示
+        Swal.fire({
+            icon: "error",
+            title: "打卡受阻",
+            html: `<span style="color: #c0392b; font-weight: bold; font-size: 15px;">${resMessage}</span>`,
+            confirmButtonText: "確定",
+            backdrop: "rgba(0,0,0,0.5)",
+            customClass: { popup: 'custom-swal-popup' }
+        });
+    }
+
+    // 重新同步今日最新紀錄
+    await updateTodayRecords(true);
+
+    // 解除處理中狀態與按鈕鎖定
+    isProcessing = false;
+    setButtonsLock(false, "上班", "下班");
 }
 
 // ===== 立即在前端畫面插入一筆紀錄 =====
@@ -647,6 +631,5 @@ document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 </script>
-
 </body>
 </html>
