@@ -317,13 +317,25 @@ function fixTimeFormat(t) {
     return t;
 }
 
-// ====== 初始化載入 (加入快取秒開機制) ======
+// ====== 載入本地快取資料（改善秒開體驗） ======
+function loadUserFromCache() {
+    const cachedRecords = sessionStorage.getItem("cached_today_records");
+    if (cachedRecords) {
+        try {
+            renderRecords(JSON.parse(cachedRecords));
+        } catch (e) {
+            console.error(e);
+        }
+    }
+}
+
+// ====== 初始化載入 ======
 window.onload = async () => {
   statusInfo.textContent = "檢查中...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 1. 優先從 LocalStorage / SessionStorage 載入畫面，達到秒開效果
+  // 1. 優先從 SessionStorage 載入快取畫面
   loadUserFromCache();
 
   try {
@@ -335,7 +347,6 @@ window.onload = async () => {
     
     await updateStatus(true);
     await updateTodayRecords(false);
-    await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
