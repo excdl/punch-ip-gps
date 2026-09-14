@@ -183,7 +183,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
 
   <button id="btnApprove">查看 | 簽核</button>
 </div>
- 
+<script>
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbziVqRZc5dk1sui0zT2PhNXQXNlViSH0Xx8h85BMEXdE7as5wEe7IqlnG3jKAtyzXkl/exec";
 const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
 const MANAGERS = [
@@ -594,6 +594,6 @@ document.getElementById("btnEnd").onclick = () => performClockIn("下班");
 document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
-
+</script> 
 </body>
 </html>
