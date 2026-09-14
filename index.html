@@ -8,155 +8,185 @@
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
 body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;box-shadow:0 8px 24px rgba(0,0,0,0.08);}
-#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;margin-bottom:5px;}
-#dateTime {font-size:22px;color:#7f8c8d;text-align:center;margin-bottom:15px;}
-#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;margin-bottom:20px;font-weight:bold;}
-.buttons-container {display:flex;gap:15px;width:100%;margin-bottom:20px;}
-.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;box-shadow:0 4px 12px rgba(0,0,0,0.15);transition:all 0.2s;}
+.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
+#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
+#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
+#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
+.buttons-container {display:flex;gap:15px;width:100%;}
+.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
+
 #btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
 #btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-button:disabled {opacity:0.5;cursor:not-allowed;box-shadow:none;}
+
+button:disabled {opacity:0.5;cursor:not-allowed;}
 
 /* ====== 優化後的今日打卡紀錄樣式 ====== */
 #todayRecordsContainer {
     width: 100%;
-    margin-top: 15px;
-    border-top: 1px solid #eee;
-    padding-top: 15px;
+    background: #fafbfc;
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #e1e8ed;
+    box-sizing: border-box;
 }
 .records-title {
     font-size: 16px;
     font-weight: bold;
     color: #34495e;
-    margin-bottom: 10px;
-}
-.records-list {
+    margin-bottom: 12px;
     display: flex;
-    flex-direction: column;
-    gap: 8px;
-    max-height: 200px;
-    overflow-y: auto;
+    align-items: center;
+    gap: 6px;
 }
 .record-item {
+    background: #ffffff;
+    border-radius: 12px;
+    padding: 12px 14px;
+    margin-bottom: 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    background: #f8f9fa;
-    padding: 10px 14px;
-    border-radius: 8px;
     border-left: 5px solid #3498db;
-    font-size: 15px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    transition: transform 0.2s;
+}
+.record-item:last-child {
+    margin-bottom: 0;
 }
 .record-info {
     display: flex;
     flex-direction: column;
+    gap: 2px;
 }
 .record-status {
+    font-size: 16px;
     font-weight: bold;
     color: #2c3e50;
 }
 .record-details {
-    font-size: 12px;
+    font-size: 13px;
     color: #7f8c8d;
-    margin-top: 2px;
 }
 .record-time {
+    font-size: 18px;
     font-weight: bold;
-    font-size: 16px;
-}
-.records-empty {
-    text-align: center;
-    color: #95a5a6;
-    font-size: 14px;
-    padding: 15px 0;
+    color: #2c3e50;
 }
 .badge-makeup {
     background: #e67e22;
     color: white;
     font-size: 11px;
     padding: 2px 6px;
-    border-radius: 4px;
-    margin-left: 6px;
+    border-radius: 6px;
+    margin-left: 4px;
+    vertical-align: middle;
+}
+.records-empty {
+    text-align: center;
+    color: #95a5a6;
+    font-size: 15px;
+    padding: 15px 0;
 }
 
-/* 圓形動畫遮罩 */
+#btnApprove {
+    margin-top:10px;
+    padding:12px 20px;
+    font-size:18px;
+    font-weight:bold;
+    border-radius:10px;
+    background:linear-gradient(145deg,#8e44ad,#663399);
+    color:white;
+    display:none;
+    width:100%;
+    cursor:pointer;
+    border:none;
+}
+#btnApprove:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+}
+
+/* ====== SweetAlert2 自訂現代化外觀覆寫 ====== */
+.swal2-popup.custom-swal-popup {
+    border-radius: 20px !important;
+    padding: 24px !important;
+    font-family: "Arial", "Noto Sans TC", sans-serif !important;
+    box-shadow: 0 20px 40px rgba(0,0,0,0.2) !important;
+}
+.swal2-title {
+    font-size: 22px !important;
+    color: #2c3e50 !important;
+    font-weight: bold !important;
+}
+.swal2-html-container {
+    font-size: 16px !important;
+    color: #555 !important;
+}
+.swal2-styled.swal2-confirm {
+    background: linear-gradient(135deg, #3498db, #2980b9) !important;
+    border-radius: 10px !important;
+    font-size: 16px !important;
+    font-weight: bold !important;
+    padding: 10px 24px !important;
+    box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
+}
+
+/* 倒數動畫（全螢幕置中遮罩） */
 #countdownWrapper {
-    position: fixed;
-    top: 0; left: 0; width: 100%; height: 100%;
-    background: rgba(255,255,255,0.9);
     display: none;
-    justify-content: center;
-    align-items: center;
-    flex-direction: column;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: rgba(255, 255, 255, 0.85);
     z-index: 9999;
-}
-.circle-container {
-    position: relative;
-    width: 120px;
-    height: 120px;
-}
-.circle-svg {
-    transform: rotate(-90deg);
-    width: 120px;
-    height: 120px;
-}
-.circle-bg {
-    fill: none;
-    stroke: #e0e0e0;
-    stroke-width: 10;
-}
-.circle-progress {
-    fill: none;
-    stroke-width: 10;
-    stroke-linecap: round;
-    transition: stroke-dashoffset 0.05s linear;
-}
-.circle-text {
-    position: absolute;
-    top: 0; left: 0; width: 100%; height: 100%;
-    display: flex;
+    flex-direction: column;
     justify-content: center;
     align-items: center;
+}
+#circleProgress { 
+    fill: none; 
+    stroke-width: 12; 
+    stroke-linecap: round; 
+}
+#countdownText { 
+    margin-top: 15px;
     font-size: 16px;
-    font-weight: bold;
+    font-weight: bold; 
     color: #2c3e50;
+    white-space: nowrap; 
 }
 </style>
 </head>
 <body>
-
 <div class="card">
-    <div id="userInfo">載入中...</div>
-    <div id="dateTime">--/--/---- --:--:--</div>
-    <div id="statusInfo">檢查中...</div>
-
-    <div class="buttons-container">
-        <button id="btnStart" disabled>上班</button>
-        <button id="btnEnd" disabled>下班</button>
-    </div>
-
-    <button id="btnApprove" style="display:none; width:100%; padding:10px; background:#8e44ad; color:white; border:none; border-radius:10px; font-weight:bold; margin-bottom:15px; cursor:pointer;">審核異地補打卡</button>
-
-    <div id="todayRecordsContainer">
-        <div class="records-title">今日打卡紀錄</div>
-        <div id="todayRecords" class="records-list">
-            <div class="records-empty">載入中...</div>
-        </div>
-    </div>
-</div>
-
-<!-- 圓形動畫遮罩結構 -->
+  <div id="userInfo">載入使用者資訊中...</div>
+  <div id="statusInfo">網路與定位初始化中…</div>
+  <div id="dateTime">載入中…</div>
+  <div class="buttons-container">
+    <button id="btnStart" disabled>同步中…</button>
+    <button id="btnEnd" disabled>同步中…</button>
+  </div>
+  
+   <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
 <div id="countdownWrapper">
-    <div class="circle-container">
-        <svg class="circle-svg">
-            <circle class="circle-bg" cx="60" cy="60" r="50"></circle>
-            <circle class="circle-progress" id="circleProgress" cx="60" cy="60" r="50"></circle>
-        </svg>
-        <div class="circle-text" id="countdownText">打卡中...</div>
-    </div>
+    <svg width="120" height="120">
+        <circle cx="60" cy="60" r="50" stroke="#eee" stroke-width="12" fill="none"></circle>
+        <circle id="circleProgress" cx="60" cy="60" r="50" stroke="#3498db" stroke-width="12" fill="none" transform="rotate(-90 60 60)"></circle>
+    </svg>
+    <div id="countdownText">打卡中...</div>
 </div>
+    
+    <!-- 優化後的今日紀錄容器 -->
+  <div id="todayRecordsContainer">
+    <div class="records-title">📋 今日打卡紀錄</div>
+    <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
+  </div>
 
+  <button id="btnApprove">查看 | 簽核</button>
+</div>
+ 
 <script>
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbx2Nmr2rt2aHWSWfc_QCxo2NQe3WQF0G_DN5marsWAFxr6SmcTINF1NWU6_Qb2sDyjo/exec";
 const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
@@ -172,7 +202,6 @@ const todayRecords = document.getElementById("todayRecords");
 
 window.userReady = false;
 window.allowRemote = false;
-let isProcessing = false; // 防止重複點擊旗標
 
 // ====== 更新日期時間 ======
 function updateDateTime() {
@@ -184,7 +213,6 @@ updateDateTime();
 
 // ====== 按鈕鎖定控制 ======
 function setButtonsLock(locked, startText = "上班", endText = "下班") {
-    if (isProcessing) return;
     btnStart.disabled = locked;
     btnEnd.disabled = locked;
     btnStart.textContent = startText;
@@ -192,26 +220,18 @@ function setButtonsLock(locked, startText = "上班", endText = "下班") {
     window.userReady = !locked;
 }
 
-// ====== 預載入與取得 IP (含 90 秒快取防呆) ======
+// ====== 預載入與取得 IP ======
 async function preloadIP() {
-    const cachedItem = sessionStorage.getItem("myIP_cache");
-    if (cachedItem) {
-        try {
-            const { ip, timestamp } = JSON.parse(cachedItem);
-            if (Date.now() - timestamp < 90000) return ip;
-        } catch (e) {}
-    }
+    const cache = sessionStorage.getItem("myIP");
+    if (cache) return cache;
 
     try {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 2500);
         const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
         clearTimeout(timeoutId);
-        
-        if (!res.ok) throw new Error("Network response was not ok");
-        
         const data = await res.json();
-        sessionStorage.setItem("myIP_cache", JSON.stringify({ ip: data.ip, timestamp: Date.now() }));
+        sessionStorage.setItem("myIP", data.ip);
         return data.ip;
     } catch {
         return "";
@@ -239,7 +259,7 @@ async function initUser() {
 }
 
 // ====== 狀態與打卡權限判定 ======
-async function updateStatus() {
+async function updateStatus(forceRefresh = false) {
     const cachedIP = await preloadIP();
     const isCompany = COMPANY_IPS.includes(cachedIP);
 
@@ -258,11 +278,8 @@ async function updateStatus() {
             const timeoutId = setTimeout(() => controller.abort(), 3000);
             const remoteRes = await fetch(`${API_ENDPOINT}?action=checkRemote&userId=${window.userId}`, { signal: controller.signal });
             clearTimeout(timeoutId);
-            
-            if (remoteRes.ok) {
-                const remoteData = await remoteRes.json();
-                remoteAllowed = remoteData.allowed || false;
-            }
+            const remoteData = await remoteRes.json();
+            remoteAllowed = remoteData.allowed || false;
         } catch(err) {
             console.error("查詢允許異地失敗", err);
         }
@@ -308,7 +325,7 @@ function fixTimeFormat(t) {
     return t;
 }
 
-// ====== 從快取載入紀錄 ======
+// ====== 從快取載入紀錄（實現秒開） ======
 function loadUserFromCache() {
     const cachedRecords = sessionStorage.getItem("cached_today_records");
     if (cachedRecords) {
@@ -326,23 +343,27 @@ window.onload = async () => {
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
+  // 1. 優先從本地快取秒開今日紀錄畫面
   loadUserFromCache();
 
   try {
+    // 2. 初始化 LIFF 與預載入 IP
     await Promise.all([
       initUser(),
       preloadIP()
     ]);
     
+    // 3. 取得資料後立刻更新狀態與即時紀錄
     if (window.userId) {
         await Promise.all([
-            updateStatus(),
+            updateStatus(true),
             updateTodayRecords(false)
         ]);
     } else {
         statusInfo.textContent = "無法取得授權";
         statusInfo.style.background = "#e74c3c";
     }
+
   } catch (error) {
     console.error("初始化失敗", error);
     statusInfo.textContent = "初始化異常";
@@ -381,10 +402,8 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 圓形漸層動畫打卡函式（完美配合後端限制與樂觀更新） =====
+// ===== 圓形漸層動畫打卡函式（兼顧秒開與正確錯誤攔截） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
-    if (isProcessing) return;
-    
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
             icon: "warning", 
@@ -397,9 +416,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         return;
     }
 
-    isProcessing = true;
-    setButtonsLock(true, "處理中", "處理中");
-
     const ip = await preloadIP();
 
     if (!isMakeup && !COMPANY_IPS.includes(ip) && !window.allowRemote) {
@@ -410,8 +426,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             confirmButtonText: "確定",
             customClass: { popup: 'custom-swal-popup' }
         });
-        isProcessing = false;
-        setButtonsLock(false, "上班", "下班");
         return;
     }
 
@@ -422,10 +436,14 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 1. 執行流暢的圓形動畫（讓使用者覺得非常滑順）
+    // 1. 同時執行圓形動畫與背景 API 請求
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
+
+    const nowObj = new Date();
+    const fallbackDate = customDate ? customDate.replace(/[-\/]/g, "/") : nowObj.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
+    const fallbackTime = customTime ? customTime : nowObj.toLocaleTimeString("zh-TW", { hour12: false });
 
     const animationPromise = new Promise((resolve) => {
         if (!wrapper || !circle || !text) {
@@ -472,71 +490,110 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         requestAnimationFrame(animate);
     });
 
-    await animationPromise;
+    const apiPromise = fetch(API_ENDPOINT, {
+        method: "POST",
+        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+    }).then(res => res.json()).catch(() => ({ message: "網路連線異常，請至下方紀錄確認" }));
 
-    // 2. 背景發送 API 進行後端規則檢核
-    try {
-        const res = await fetch(API_ENDPOINT, {
-            method: "POST",
-            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
-        });
-        
-        if (!res.ok) throw new Error("API request failed");
-        const apiData = await res.json();
+    // 等待動畫跑完且取得 API 真實結果
+    const [_, apiData] = await Promise.all([animationPromise, apiPromise]);
 
-        // 判斷後端回傳的訊息是否包含「成功」
-        const isSuccess = apiData.message && (apiData.message.includes("成功") || apiData.message.includes("完成"));
+    const resDate = apiData?.date || fallbackDate;
+    const resTime = apiData?.time || fallbackTime;
+    const resMessage = apiData?.message || "打卡完成";
 
-        if (!isSuccess) {
-            // 後端擋下（例如：重複打卡、順序錯誤、次數滿）
-            Swal.fire({
-                icon: "warning",
-                title: "無法打卡",
-                html: `<span style="color: #e67e22; font-weight: bold;">${apiData.message}</span>`,
-                confirmButtonText: "確定",
-                customClass: { popup: 'custom-swal-popup' }
+    // 2. 根據後端真實訊息判斷成功或失敗
+    if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
+        // 背景發送 LIFF 訊息
+        try {
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: resDate,
+                time: resTime,
+                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
             });
-        } else {
-            // 成功打卡：彈出成功視窗並更新畫面
-            const successDate = apiData.date || "";
-            const successTime = apiData.time || "";
+        } catch (e) {}
 
-            Swal.fire({
-                icon: "success",
-                title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-                html: `<div style="font-size: 16px; margin-top: 8px;"><strong>${apiData.message}</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${successDate} ${successTime}</span></div>`,
-                showConfirmButton: false, 
-                timer: 1600, 
-                backdrop: "rgba(0,0,0,0.5)",
-                customClass: { popup: 'custom-swal-popup' }
-            });
-
-            // 觸發 LIFF 訊息
-            try {
-                sendSelfMessage({
-                    userName: window.userName,
-                    status: status,
-                    date: successDate,
-                    time: successTime,
-                    netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-                });
-            } catch (e) {}
-        }
-
-        // 無論成功與否，最終都向後端拉取最新今日紀錄確保畫面百分之百同步
-        await updateTodayRecords(true);
-
-    } catch (err) {
-        console.error("打卡傳送失敗:", err);
         Swal.fire({
-            icon: "error",
-            title: "連線異常",
-            text: "網路連線發生錯誤，請稍後再試",
+            icon: "success",
+            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
+            showConfirmButton: false, 
+            timer: 1600, 
+            backdrop: "rgba(0,0,0,0.5)",
             customClass: { popup: 'custom-swal-popup' }
         });
-    } finally {
-        isProcessing = false;
-        setButtonsLock(false, "上班", "下班");
+
+        // 成功時才將紀錄加入前端畫面
+        appendOptimisticRecord({
+            status: status,
+            time: resTime,
+            ip: ip,
+            isMakeup: isMakeup
+        });
+    } else {
+        // ❌ 如果後端擋下（例如超過次數、順序錯誤），跳出紅色警告視窗提示使用者
+        Swal.fire({
+            icon: "error",
+            title: "打卡受阻",
+            html: `<span style="color: #c0392b; font-weight: bold; font-size: 15px;">${resMessage}</span>`,
+            confirmButtonText: "確定",
+            backdrop: "rgba(0,0,0,0.5)",
+            customClass: { popup: 'custom-swal-popup' }
+        });
+    }
+
+    // 更新下方打卡紀錄
+    updateTodayRecords(true);
+}
+
+    // 3. 立即將紀錄插入前端畫面與快取，讓下方紀錄瞬間跟上
+    appendOptimisticRecord({
+        status: status,
+        time: successTime,
+        ip: ip,
+        isMakeup: isMakeup
+    });
+
+    // 4. 背景默默發送 API 與 LIFF 訊息
+    fetch(API_ENDPOINT, {
+        method: "POST",
+        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+    })
+    .then(res => res.json())
+    .then(apiData => {
+        try {
+            sendSelfMessage({
+                userName: window.userName,
+                status: status,
+                date: apiData?.date || successDate,
+                time: apiData?.time || successTime,
+                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+            });
+        } catch (e) {}
+
+        // 5秒後靜默校正一次後端最新資料
+        setTimeout(() => updateTodayRecords(true), 5000);
+    })
+    .catch(err => {
+        console.error("背景同步失敗:", err);
+    });
+}
+
+// ===== 立即在前端畫面插入一筆紀錄（達成秒顯示） =====
+function appendOptimisticRecord(newRecord) {
+    let cachedRecords = [];
+    try {
+        const raw = sessionStorage.getItem("cached_today_records");
+        if (raw) cachedRecords = JSON.parse(raw);
+    } catch (e) {}
+
+    const exists = cachedRecords.some(r => r.status === newRecord.status && r.time === newRecord.time);
+    if (!exists) {
+        cachedRecords.push(newRecord);
+        sessionStorage.setItem("cached_today_records", JSON.stringify(cachedRecords));
+        renderRecords(cachedRecords);
     }
 }
 
@@ -591,10 +648,11 @@ async function updateTodayRecords(isFastRender = false){
   
   try {
     const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`);
-    if (!res.ok) throw new Error("Failed to fetch today records");
-    
     const data = await res.json();
+
+    // 儲存至 sessionStorage 快取
     sessionStorage.setItem("cached_today_records", JSON.stringify(data));
+
     renderRecords(data);
   } catch (err) {
     console.error(err);
@@ -611,5 +669,7 @@ document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 </script>
+
 </body>
 </html>
+
