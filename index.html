@@ -475,53 +475,52 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     }
 
     // 發送 API
-    let apiData = null;
-    try {
-        const res = await fetch(API_ENDPOINT, {
-            method: "POST",
-            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
-        });
-        apiData = await res.json();
-    } catch(err) {
-        console.error(err);
-        apiData = { message:"網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
-    }
+  let apiData = null;
+  try {
+    const res = await fetch(API_ENDPOINT, {
+      method: "POST", 
+      body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup }) 
+    });
+    apiData = await res.json();
+  } catch(err) {
+    console.error(err);
+    apiData = { message:"網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
+  }
 
-    if (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新"))) {
-        try {
-            sendSelfMessage({
-                userName: window.userName,
-                status: status,
-                date: apiData.date,
-                time: apiData.time,
-                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-            });
-        } catch (err) {
-            console.error("背景傳送訊息失敗", err);
-        }
+  // 【優化點 1】先在背景非同步發送 LINE 訊息，不卡住畫面的彈窗顯示
+  if (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新"))) {
+    sendSelfMessage({
+      userName: window.userName, 
+      status: status, 
+      date: apiData.date, 
+      time: apiData.time, 
+      netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路" 
+    }).catch(err => console.error("背景傳送訊息失敗", err));
 
-        Swal.fire({
-            icon: "success",
-            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${apiData.date} ${apiData.time}</span></div>`,
-            showConfirmButton: false, 
-            timer: 1800, 
-            backdrop: "rgba(0,0,0,0.5)",
-            customClass: { popup: 'custom-swal-popup' }
-        });
-    } else {
-        Swal.fire({
-            icon: "error",
-            title: "打卡提示",
-            html: `<span style="color: #c0392b;">${apiData?.message || "打卡失敗，請檢查網路！"}</span>`,
-            confirmButtonText: "確定",
-            customClass: { popup: 'custom-swal-popup' }
-        });
-    }
+    // 【優化點 2】立即顯示成功彈窗，並縮短 timer 或不使用過長延遲
+    Swal.fire({
+      icon: "success", 
+      title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！", 
+      html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${apiData.date} ${apiData.time}</span></div>`, 
+      showConfirmButton: false, 
+      timer: 1500, // 縮短彈窗停留時間（原 1800）
+      backdrop: "rgba(0,0,0,0.5)", 
+      customClass: { popup: 'custom-swal-popup' } 
+    });
+  } else {
+    Swal.fire({
+      icon: "error", 
+      title: "打卡提示", 
+      html: `<span style="color: #c0392b;">${apiData?.message || "打卡失敗，請檢查網路！"}</span>`, 
+      confirmButtonText: "確定", 
+      customClass: { popup: 'custom-swal-popup' } 
+    });
+  }
 
-    setTimeout(() => {
-        updateTodayRecords();
-    }, 400);
+  // 【優化點 3】將原本的 400ms 縮短為 50ms，讓打卡紀錄列表瞬間更新
+  setTimeout(() => {
+    updateTodayRecords();
+  }, 50);
 }
 
 /* ===== 今日紀錄渲染函式 ===== */
