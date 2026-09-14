@@ -402,7 +402,7 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 圓形漸層動畫打卡函式（優化秒開與流暢度） =====
+// ===== 圓形漸層動畫打卡函式（採用樂觀更新，零延遲秒開） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -436,17 +436,16 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 1. 建立 Promise 讓 動畫 與 API 請求同時進行
-    const wrapper = document.getElementById("countdownWrapper");
-    const circle = document.getElementById("circleProgress");
-    const text = document.getElementById("countdownText");
-
-    // 取得當下預估時間（讓視窗可以秒跳，不用等伺服器回傳）
+    // 取得當下預估時間
     const nowObj = new Date();
     const fallbackDate = customDate ? customDate.replace(/[-\/]/g, "/") : nowObj.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
     const fallbackTime = customTime ? customTime : nowObj.toLocaleTimeString("zh-TW", { hour12: false });
 
-    // 執行動畫與 API 請求的同步處理
+    // 1. 執行流暢的圓形動畫
+    const wrapper = document.getElementById("countdownWrapper");
+    const circle = document.getElementById("circleProgress");
+    const text = document.getElementById("countdownText");
+
     const animationPromise = new Promise((resolve) => {
         if (!wrapper || !circle || !text) {
             resolve();
@@ -469,8 +468,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
         let progress = 0;
         function animate() {
-            // 稍微加快動畫速度（約 0.8 秒跑完），讓體感更輕快
-            progress = Math.min(progress + 0.012, 1);
+            progress = Math.min(progress + 0.015, 1);
             circle.style.strokeDashoffset = circumference * (1 - progress);
 
             const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
@@ -481,67 +479,82 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             if(progress < 1) {
                 requestAnimationFrame(animate);
             } else {
-                // 動畫結束立刻隱藏遮罩
-                wrapper.style.transition = "opacity 0.3s";
+                wrapper.style.transition = "opacity 0.2s";
                 wrapper.style.opacity = 0;
                 setTimeout(() => {
                     wrapper.style.display = "none";
                     wrapper.style.opacity = 1;
                     resolve();
-                }, 200);
+                }, 150);
             }
         }
         requestAnimationFrame(animate);
     });
 
-    // 背景發送 API 請求
-    const apiPromise = fetch(API_ENDPOINT, {
+    // 等待動畫跑完（完全不卡伺服器回應）
+    await animationPromise;
+
+    // 2. 樂觀更新：動畫一結束立即彈出成功視窗
+    const successDate = fallbackDate;
+    const successTime = fallbackTime;
+
+    Swal.fire({
+        icon: "success",
+        title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+        html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${successDate} ${successTime}</span></div>`,
+        showConfirmButton: false, 
+        timer: 1600, 
+        backdrop: "rgba(0,0,0,0.5)",
+        customClass: { popup: 'custom-swal-popup' }
+    });
+
+    // 3. 立即將紀錄插入前端畫面與快取，讓下方紀錄瞬間跟上
+    appendOptimisticRecord({
+        status: status,
+        time: successTime,
+        ip: ip,
+        isMakeup: isMakeup
+    });
+
+    // 4. 背景默默發送 API 與 LIFF 訊息
+    fetch(API_ENDPOINT, {
         method: "POST",
         body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
-    }).then(res => res.json()).catch(() => ({ message: "網路連線異常，請至下方紀錄確認" }));
-
-    // 同時等待動畫跑完且 API 回傳
-    const [_, apiData] = await Promise.all([animationPromise, apiPromise]);
-
-    const resDate = apiData?.date || fallbackDate;
-    const resTime = apiData?.time || fallbackTime;
-    const resMessage = apiData?.message || "打卡完成";
-
-    if (resMessage.includes("成功") || resMessage.includes("更新") || resMessage.includes("完成")) {
-        // 背景發送 LIFF 訊息不阻塞彈窗
+    })
+    .then(res => res.json())
+    .then(apiData => {
         try {
             sendSelfMessage({
                 userName: window.userName,
                 status: status,
-                date: resDate,
-                time: resTime,
+                date: apiData?.date || successDate,
+                time: apiData?.time || successTime,
                 netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
             });
-        } catch (err) {
-            console.error("背景傳送訊息失敗", err);
-        }
+        } catch (e) {}
 
-        Swal.fire({
-            icon: "success",
-            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
-            showConfirmButton: false, 
-            timer: 1600, 
-            backdrop: "rgba(0,0,0,0.5)",
-            customClass: { popup: 'custom-swal-popup' }
-        });
-    } else {
-        Swal.fire({
-            icon: "error",
-            title: "打卡提示",
-            html: `<span style="color: #c0392b;">${resMessage}</span>`,
-            confirmButtonText: "確定",
-            customClass: { popup: 'custom-swal-popup' }
-        });
+        // 5秒後靜默校正一次後端最新資料
+        setTimeout(() => updateTodayRecords(true), 5000);
+    })
+    .catch(err => {
+        console.error("背景同步失敗:", err);
+    });
+}
+
+// ===== 立即在前端畫面插入一筆紀錄（達成秒顯示） =====
+function appendOptimisticRecord(newRecord) {
+    let cachedRecords = [];
+    try {
+        const raw = sessionStorage.getItem("cached_today_records");
+        if (raw) cachedRecords = JSON.parse(raw);
+    } catch (e) {}
+
+    const exists = cachedRecords.some(r => r.status === newRecord.status && r.time === newRecord.time);
+    if (!exists) {
+        cachedRecords.push(newRecord);
+        sessionStorage.setItem("cached_today_records", JSON.stringify(cachedRecords));
+        renderRecords(cachedRecords);
     }
-
-    // 更新下方打卡紀錄
-    updateTodayRecords(false);
 }
 
 function getTodayString() {
