@@ -523,20 +523,22 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
   }, 50);
 }
 
-/* ===== 今日紀錄渲染函式（已優化容錯與防呆） ===== */
+/* ===== 今日紀錄渲染函式（已優化載入速度與視覺體驗） ===== */
 async function updateTodayRecords(){
   if (!window.userId) return; 
+
+  // 加上輕量載入提示，提升體感速度
+  todayRecords.innerHTML = `<div class="records-empty" style="color: #7f8c8d; font-size: 14px;">載入紀錄中...</div>`;
+
   try {
     const url = `${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`;
     const res = await fetch(url);
-    
-    // 確保回應文字可以安全解析為 JSON
     const textData = await res.text();
     let data;
     try {
       data = JSON.parse(textData);
     } catch (parseErr) {
-      console.error("JSON 解析失敗，原始回應：", textData);
+      console.error("JSON 解析失敗", textData);
       todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">伺服器回應格式錯誤</div>`;
       return;
     }
@@ -546,6 +548,7 @@ async function updateTodayRecords(){
       return;
     }
 
+    // 使用 map 一次性組成 HTML 字串，減少 DOM 頻繁重繪
     const recordsHTML = data.map(r => {
       let color = r.status === "下班" ? "#2ecc71" : "#3498db";
       const time = fixTimeFormat(r.time);
