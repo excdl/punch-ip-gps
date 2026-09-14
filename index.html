@@ -188,18 +188,10 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
 </div>
  
 <script>
-
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbyWG57cQ4vEYyjFHDNqJaH6f25Ct9cKFidMB-n9T4_fjNS4y1L_Vcdn8QwQSuf67UN-/exec";
-
-const COMPANY_IPS = [
-    "220.134.112.245",
-    "114.34.60.48",
-    "27.52.100.79"
-];
-
+const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
 const MANAGERS = [
-    "U76174e2a9654ab2c7b1f037b28cb6c86",
-    "U7fdf4fbd467b9a93a23fac01ed03351b"
+    "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
 
 const userInfo = document.getElementById("userInfo");
@@ -211,1710 +203,429 @@ const todayRecords = document.getElementById("todayRecords");
 window.userReady = false;
 window.allowRemote = false;
 
-// 防止重複送出
-window.clockSubmitting = false;
-
-
-// ============================================================
-// 更新日期時間
-// ============================================================
-
+// ====== 更新日期時間 ======
 function updateDateTime() {
-
     const now = new Date();
-
-    document.getElementById("dateTime").textContent =
-        now.toLocaleString("zh-TW", {
-            hour12: false
-        });
+    document.getElementById("dateTime").textContent = now.toLocaleString("zh-TW", { hour12: false });
 }
-
 setInterval(updateDateTime, 1000);
 updateDateTime();
 
-
-// ============================================================
-// 按鈕鎖定控制
-// ============================================================
-
-function setButtonsLock(
-    locked,
-    startText = "上班",
-    endText = "下班"
-) {
-
+// ====== 按鈕鎖定控制 ======
+function setButtonsLock(locked, startText = "上班", endText = "下班") {
     btnStart.disabled = locked;
     btnEnd.disabled = locked;
-
     btnStart.textContent = startText;
     btnEnd.textContent = endText;
-
     window.userReady = !locked;
 }
 
-
-// ============================================================
-// 打卡送出狀態控制
-// ============================================================
-
-function setSubmittingState(submitting) {
-
-    window.clockSubmitting = submitting;
-
-    if (submitting) {
-
-        btnStart.disabled = true;
-        btnEnd.disabled = true;
-
-    } else {
-
-        // 送出結束後重新檢查目前打卡區域
-        updateStatus(true);
-    }
-}
-
-
-// ============================================================
-// 預載入與取得 IP
-// ============================================================
-
+// ====== 預載入與取得 IP ======
 async function preloadIP() {
-
     const cache = sessionStorage.getItem("myIP");
-
     if (cache) return cache;
 
     try {
-
         const controller = new AbortController();
-
-        const timeoutId = setTimeout(
-            () => controller.abort(),
-            2500
-        );
-
-        const res = await fetch(
-            "https://api.ipify.org?format=json",
-            {
-                signal: controller.signal
-            }
-        );
-
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
         clearTimeout(timeoutId);
-
         const data = await res.json();
-
         sessionStorage.setItem("myIP", data.ip);
-
         return data.ip;
-
-    } catch (err) {
-
-        console.error("取得 IP 失敗:", err);
-
+    } catch {
         return "";
     }
 }
 
-
-// ============================================================
-// 初始化 LIFF 使用者
-// ============================================================
-
+// ====== 初始化 LIFF 使用者 ======
 async function initUser() {
-
     try {
-
-        await liff.init({
-            liffId: "2010795326-ID1oydWL"
-        });
-
+        await liff.init({ liffId: "2010795326-ID1oydWL" });
         if (!liff.isLoggedIn()) {
-
             liff.login();
-
             return;
         }
-
         const profile = await liff.getProfile();
-
         window.userId = profile.userId;
         window.userName = profile.displayName;
 
-        userInfo.textContent =
-            `${window.userName} 您好`;
-
-        const approveButton =
-            document.getElementById("btnApprove");
-
-        if (approveButton) {
-
-            approveButton.style.display =
-                MANAGERS.includes(window.userId)
-                    ? "block"
-                    : "none";
-        }
-
+        userInfo.textContent = `${window.userName} 您好`;
+        document.getElementById("btnApprove").style.display = MANAGERS.includes(window.userId) ? "block" : "none";
     } catch (err) {
-
-        console.error(
-            "LIFF 初始化失敗:",
-            err
-        );
-
-        userInfo.textContent =
-            "使用者資訊載入失敗";
+        console.error("LIFF 初始化失敗:", err);
+        userInfo.textContent = "使用者資訊載入失敗";
     }
 }
 
-
-// ============================================================
-// 狀態與打卡權限判定
-// ============================================================
-
+// ====== 狀態與打卡權限判定 ======
 async function updateStatus(forceRefresh = false) {
-
-    // 正在送出打卡時，不要重新開啟按鈕
-    if (window.clockSubmitting) return;
-
     const cachedIP = await preloadIP();
+    const isCompany = COMPANY_IPS.includes(cachedIP);
 
-    const isCompany =
-        COMPANY_IPS.includes(cachedIP);
-
-    // 公司網路
     if (isCompany) {
-
-        statusInfo.textContent =
-            "有效打卡區";
-
-        statusInfo.style.background =
-            "#2ecc71";
-
-        setButtonsLock(
-            false,
-            "上班",
-            "下班"
-        );
-
+        statusInfo.textContent = "有效打卡區";
+        statusInfo.style.background = "#2ecc71";
+        setButtonsLock(false, "上班", "下班");
         window.allowRemote = false;
-
         return;
     }
 
-
-    // ========================================================
-    // 非公司網路 → 查詢異地打卡授權
-    // ========================================================
-
     let remoteAllowed = false;
-
     if (window.userId) {
-
         try {
-
-            const controller =
-                new AbortController();
-
-            const timeoutId =
-                setTimeout(
-                    () => controller.abort(),
-                    3000
-                );
-
-            const remoteRes = await fetch(
-                `${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`,
-                {
-                    signal: controller.signal
-                }
-            );
-
+            const controller = new AbortController();
+            const timeoutId = setTimeout(() => controller.abort(), 3000);
+            const remoteRes = await fetch(`${API_ENDPOINT}?action=checkRemote&userId=${window.userId}`, { signal: controller.signal });
             clearTimeout(timeoutId);
-
-            const remoteData =
-                await remoteRes.json();
-
-            remoteAllowed =
-                remoteData.allowed || false;
-
-        } catch (err) {
-
-            console.error(
-                "查詢允許異地失敗:",
-                err
-            );
+            const remoteData = await remoteRes.json();
+            remoteAllowed = remoteData.allowed || false;
+        } catch(err) {
+            console.error("查詢允許異地失敗", err);
         }
     }
-
-    window.allowRemote =
-        remoteAllowed;
-
-
-    // ========================================================
-    // 異地允許
-    // ========================================================
+    window.allowRemote = remoteAllowed;
 
     if (remoteAllowed) {
-
-        statusInfo.textContent =
-            "有效打卡區 (異地)";
-
-        statusInfo.style.background =
-            "#2ecc71";
-
-        setButtonsLock(
-            false,
-            "上班",
-            "下班"
-        );
-
-    }
-
-    // ========================================================
-    // 異地不允許
-    // ========================================================
-
-    else {
-
-        statusInfo.textContent =
-            "無效打卡區";
-
-        statusInfo.style.background =
-            "#e74c3c";
-
-        setButtonsLock(
-            true,
-            "上班",
-            "下班"
-        );
+        statusInfo.textContent = "有效打卡區 (異地)";
+        statusInfo.style.background = "#2ecc71";
+        setButtonsLock(false, "上班", "下班");
+    } else {
+        statusInfo.textContent = "無效打卡區";
+        statusInfo.style.background = "#e74c3c";
+        setButtonsLock(true, "上班", "下班");
     }
 }
 
-
-// ============================================================
-// 取得手機 GPS 經緯度
-// ============================================================
-
+// ====== 取得手機 GPS 經緯度 ======
 function getGeoLocation() {
-
     return new Promise((resolve) => {
-
         if (!navigator.geolocation) {
-
-            resolve({
-                lat: "",
-                lng: ""
-            });
-
+            resolve({ lat: "", lng: "" });
             return;
         }
-
         navigator.geolocation.getCurrentPosition(
-
             (position) => {
-
-                resolve({
-                    lat:
-                        position.coords.latitude,
-
-                    lng:
-                        position.coords.longitude
-                });
+                resolve({ lat: position.coords.latitude, lng: position.coords.longitude });
             },
-
-            () => {
-
-                resolve({
-                    lat: "",
-                    lng: ""
-                });
-            },
-
-            {
-                timeout: 5000,
-                enableHighAccuracy: true
-            }
+            () => resolve({ lat: "", lng: "" }),
+            { timeout: 5000, enableHighAccuracy: true }
         );
     });
 }
 
-
-// ============================================================
-// 時間格式處理
-// ============================================================
-
+// ====== 時間格式處理 ======
 function fixTimeFormat(t) {
-
-    if (
-        typeof t === "string" &&
-        t.includes(":") &&
-        !t.includes("T")
-    ) {
-        return t;
-    }
-
-    if (
-        typeof t === "string" &&
-        t.includes("T")
-    ) {
-
-        return new Date(t)
-            .toLocaleTimeString(
-                "zh-TW",
-                {
-                    hour12: false
-                }
-            );
-    }
-
+    if (typeof t === "string" && t.includes(":") && !t.includes("T")) return t;
+    if (typeof t === "string" && t.includes("T")) return new Date(t).toLocaleTimeString("zh-TW", { hour12: false });
     if (!isNaN(t)) {
-
-        const d =
-            new Date(
-                (t - 25569) *
-                86400 *
-                1000
-            );
-
-        return d.toLocaleTimeString(
-            "zh-TW",
-            {
-                hour12: false
-            }
-        );
+        const d = new Date((t - 25569) * 86400 * 1000);
+        return d.toLocaleTimeString("zh-TW", { hour12: false });
     }
-
     return t;
 }
 
-
-// ============================================================
-// 從快取載入紀錄
-// ============================================================
-
+// ====== 從快取載入紀錄（實現秒開） ======
 function loadUserFromCache() {
-
-    const cachedRecords =
-        sessionStorage.getItem(
-            "cached_today_records"
-        );
-
-    if (!cachedRecords) return;
-
-    try {
-
-        renderRecords(
-            JSON.parse(cachedRecords)
-        );
-
-    } catch (e) {
-
-        console.error(
-            "快取紀錄解析失敗:",
-            e
-        );
+    const cachedRecords = sessionStorage.getItem("cached_today_records");
+    if (cachedRecords) {
+        try {
+            renderRecords(JSON.parse(cachedRecords));
+        } catch (e) {
+            console.error(e);
+        }
     }
 }
 
-
-// ============================================================
-// 初始化載入
-// ============================================================
-
+// ====== 初始化載入 ======
 window.onload = async () => {
+  statusInfo.textContent = "檢查中...";
+  statusInfo.style.background = "#95a5a6";
+  setButtonsLock(true, "同步中...", "同步中...");
 
-    statusInfo.textContent =
-        "檢查中...";
+  // 1. 優先從本地快取秒開今日紀錄畫面
+  loadUserFromCache();
 
-    statusInfo.style.background =
-        "#95a5a6";
-
-    setButtonsLock(
-        true,
-        "同步中...",
-        "同步中..."
-    );
-
-    // 優先顯示快取
-    loadUserFromCache();
-
-    try {
-
-        // 初始化 LIFF + IP
+  try {
+    // 2. 初始化 LIFF 與預載入 IP
+    await Promise.all([
+      initUser(),
+      preloadIP()
+    ]);
+    
+    // 3. 取得資料後立刻更新狀態與即時紀錄
+    if (window.userId) {
         await Promise.all([
-
-            initUser(),
-
-            preloadIP()
-
+            updateStatus(true),
+            updateTodayRecords(false)
         ]);
-
-        if (window.userId) {
-
-            await Promise.all([
-
-                updateStatus(true),
-
-                updateTodayRecords(false)
-
-            ]);
-
-        } else {
-
-            statusInfo.textContent =
-                "無法取得授權";
-
-            statusInfo.style.background =
-                "#e74c3c";
-        }
-
-    } catch (error) {
-
-        console.error(
-            "初始化失敗:",
-            error
-        );
-
-        statusInfo.textContent =
-            "初始化異常";
-
-        statusInfo.style.background =
-            "#e74c3c";
+    } else {
+        statusInfo.textContent = "無法取得授權";
+        statusInfo.style.background = "#e74c3c";
     }
+
+  } catch (error) {
+    console.error("初始化失敗", error);
+    statusInfo.textContent = "初始化異常";
+    statusInfo.style.background = "#e74c3c";
+  }
 };
 
-
-// ============================================================
-// 打卡後發送 Flex Message
-// ============================================================
-
+/* ===== 打卡後發送 Flex Message ===== */
 async function sendSelfMessage(record) {
-
     if (!liff.isInClient()) return;
-
-    const headerColor =
-        record.status === "下班"
-            ? "#2ecc71"
-            : "#3498db";
-
+    let headerColor = record.status === "下班" ? "#2ecc71" : "#3498db"; 
     try {
-
-        await liff.sendMessages([
-
-            {
-                type: "flex",
-
-                altText: "打卡通知",
-
-                contents: {
-
-                    type: "bubble",
-
-                    header: {
-
-                        type: "box",
-
-                        layout: "vertical",
-
-                        contents: [
-
-                            {
-                                type: "text",
-                                text:
-                                    `${record.userName} 已打卡`,
-                                weight: "bold",
-                                size: "lg",
-                                color: "#ffffff"
-                            }
-
-                        ],
-
-                        backgroundColor:
-                            headerColor,
-
-                        paddingAll: "12px"
-                    },
-
-                    body: {
-
-                        type: "box",
-
-                        layout: "vertical",
-
-                        spacing: "md",
-
-                        contents: [
-
-                            {
-                                type: "text",
-                                text:
-                                    `狀態：${record.status}`,
-                                size: "md"
-                            },
-
-                            {
-                                type: "text",
-                                text:
-                                    `時間：${record.date} ${record.time}`,
-                                size: "md"
-                            },
-
-                            {
-                                type: "text",
-                                text:
-                                    `網路：${record.netType}`,
-                                size: "md"
-                            }
-
-                        ]
-                    }
+        await liff.sendMessages([{
+            type: 'flex',
+            altText: '打卡通知',
+            contents: {
+                type: "bubble",
+                header: {
+                    type: "box", layout: "vertical",
+                    contents: [{ type: "text", text: `${record.userName} 已打卡`, weight: "bold", size: "lg", color: "#ffffff" }],
+                    backgroundColor: headerColor, paddingAll: "12px"
+                },
+                body: {
+                    type: "box", layout: "vertical", spacing: "md",
+                    contents: [
+                        { type: "text", text: `狀態：${record.status}`, size: "md" },
+                        { type: "text", text: `時間：${record.date} ${record.time}`, size: "md" },
+                        { type: "text", text: `網路：${record.netType}`, size: "md" }
+                    ]
                 }
             }
-
-        ]);
-
-        await new Promise(
-            r => setTimeout(r, 800)
-        );
-
-    } catch (err) {
-
-        console.error(
-            "LIFF 訊息傳送失敗:",
-            err
-        );
+        }]);
+        await new Promise(r => setTimeout(r, 800));
+    } catch(err) {
+        console.error("LIFF 訊息傳送失敗:", err);
     }
 }
 
-
-// ============================================================
-// 判斷後端回傳是否為成功
-// ============================================================
-
-function isClockSuccess(message) {
-
-    const successMessages = [
-
-        "打卡成功",
-
-        "補打卡成功",
-
-        "下班卡更新成功"
-
-    ];
-
-    return successMessages.includes(
-        String(message || "").trim()
-    );
-}
-
-
-// ============================================================
-// 顯示後端拒絕訊息
-// ============================================================
-
-function showBackendError(apiData) {
-
-    const message =
-        String(
-            apiData?.message ||
-            "後端未允許此次打卡"
-        ).trim();
-
-    const date =
-        apiData?.date || "";
-
-    const time =
-        apiData?.time || "";
-
-    Swal.fire({
-
-        icon: "warning",
-
-        title: "無法完成打卡",
-
-        html: `
-
-            <div style="
-                font-size:16px;
-                line-height:1.7;
-                color:#e67e22;
-                font-weight:bold;
-                margin-top:8px;
-            ">
-                ${message}
-            </div>
-
-            ${
-                date || time
-                    ? `
-                        <div style="
-                            margin-top:12px;
-                            color:#7f8c8d;
-                            font-size:14px;
-                        ">
-                            系統時間：
-                            ${date}
-                            ${time}
-                        </div>
-                      `
-                    : ""
-            }
-
-        `,
-
-        confirmButtonText: "確定",
-
-        customClass: {
-            popup: "custom-swal-popup"
-        }
-    });
-}
-
-
-// ============================================================
-// 圓形動畫
-// ============================================================
-
-function runClockAnimation(
-    status,
-    isMakeup
-) {
-
-    return new Promise((resolve) => {
-
-        const wrapper =
-            document.getElementById(
-                "countdownWrapper"
-            );
-
-        const circle =
-            document.getElementById(
-                "circleProgress"
-            );
-
-        const text =
-            document.getElementById(
-                "countdownText"
-            );
-
-        if (!wrapper || !circle || !text) {
-
-            resolve();
-
-            return;
-        }
-
-        wrapper.style.display =
-            "flex";
-
-        wrapper.style.opacity =
-            1;
-
-        text.textContent =
-            isMakeup
-                ? "補打卡中..."
-                : "打卡中...";
-
-
-        const colors = {
-
-            上班: {
-                start: {
-                    r: 52,
-                    g: 152,
-                    b: 219
-                },
-
-                end: {
-                    r: 41,
-                    g: 128,
-                    b: 185
-                }
-            },
-
-            下班: {
-                start: {
-                    r: 46,
-                    g: 204,
-                    b: 113
-                },
-
-                end: {
-                    r: 39,
-                    g: 174,
-                    b: 96
-                }
-            },
-
-            補打卡: {
-                start: {
-                    r: 243,
-                    g: 156,
-                    b: 18
-                },
-
-                end: {
-                    r: 243,
-                    g: 156,
-                    b: 18
-                }
-            }
-        };
-
-
-        const {
-            start: startColor,
-            end: endColor
-        } = isMakeup
-
-            ? colors.補打卡
-
-            : (
-                colors[status] ||
-                colors.上班
-            );
-
-
-        const radius = 50;
-
-        const circumference =
-            2 *
-            Math.PI *
-            radius;
-
-
-        circle.style.strokeDasharray =
-            circumference;
-
-        circle.style.strokeDashoffset =
-            circumference;
-
-
-        let progress = 0;
-
-
-        function animate() {
-
-            progress =
-                Math.min(
-                    progress + 0.015,
-                    1
-                );
-
-
-            circle.style.strokeDashoffset =
-                circumference *
-                (1 - progress);
-
-
-            const rC =
-                Math.round(
-                    startColor.r *
-                    (1 - progress) +
-                    endColor.r *
-                    progress
-                );
-
-            const gC =
-                Math.round(
-                    startColor.g *
-                    (1 - progress) +
-                    endColor.g *
-                    progress
-                );
-
-            const bC =
-                Math.round(
-                    startColor.b *
-                    (1 - progress) +
-                    endColor.b *
-                    progress
-                );
-
-
-            circle.style.stroke =
-                `rgb(${rC},${gC},${bC})`;
-
-
-            if (progress < 1) {
-
-                requestAnimationFrame(
-                    animate
-                );
-
-            } else {
-
-                wrapper.style.transition =
-                    "opacity 0.2s";
-
-                wrapper.style.opacity =
-                    0;
-
-
-                setTimeout(() => {
-
-                    wrapper.style.display =
-                        "none";
-
-                    wrapper.style.opacity =
-                        1;
-
-                    resolve();
-
-                }, 150);
-            }
-        }
-
-
-        requestAnimationFrame(
-            animate
-        );
-    });
-}
-
-
-// ============================================================
-// 主要打卡函式
-// ============================================================
-
-async function performClockIn(
-    status,
-    customDate = "",
-    customTime = "",
-    isMakeup = false
-) {
-
-    // ========================================================
-    // 防止連點
-    // ========================================================
-
-    if (window.clockSubmitting) {
-
-        return;
-    }
-
-
-    // ========================================================
-    // 前端基本權限檢查
-    // ========================================================
-
-    if (
-        !window.userReady &&
-        !isMakeup
-    ) {
-
-        Swal.fire({
-
-            icon: "warning",
-
-            title: "提示",
-
-            html:
-                "<span style='color:#e67e22;'>" +
-                "目前為無效打卡區，無法打卡！" +
-                "</span>",
-
-            timer: 1800,
-
+// ===== 圓形漸層動畫打卡函式（結合後端回應提示） =====
+
+async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
+    if (!window.userReady && !isMakeup) {
+        Swal.fire({ 
+            icon: "warning", 
+            title: "提示", 
+            html: "<span style='color: #e67e22;'>目前為無效打卡區，無法打卡！</span>", 
+            timer: 1800, 
             showConfirmButton: false,
-
-            customClass: {
-                popup: "custom-swal-popup"
-            }
+            customClass: { popup: 'custom-swal-popup' }
         });
-
         return;
     }
 
-
-    // ========================================================
-    // 取得 IP
-    // ========================================================
-
-    const ip =
-        await preloadIP();
-
-
-    // ========================================================
-    // 再次確認異地授權
-    // ========================================================
-
-    if (
-        !isMakeup &&
-        !COMPANY_IPS.includes(ip) &&
-        !window.allowRemote
-    ) {
-
+    const ip = await preloadIP();
+    if (!isMakeup && !COMPANY_IPS.includes(ip) && !window.allowRemote) {
         Swal.fire({
-
             icon: "error",
-
             title: "打卡失敗",
-
-            html:
-                "<span style=" +
-                "'color:#e74c3c;font-weight:bold;'>" +
-                "非公司網路且未授權異地打卡！" +
-                "</span>",
-
+            html: `<span style="color:#e74c3c; font-weight:bold;">非公司網路且未授權異地打卡！</span>`,
             confirmButtonText: "確定",
-
-            customClass: {
-                popup: "custom-swal-popup"
-            }
+            customClass: { popup: 'custom-swal-popup' }
         });
-
         return;
     }
 
-
-    // ========================================================
-    // GPS
-    // ========================================================
-
-    let lat = "";
-    let lng = "";
-
-
-    if (
-        window.allowRemote &&
-        !COMPANY_IPS.includes(ip)
-    ) {
-
-        const geo =
-            await getGeoLocation();
-
+    let lat = "", lng = "";
+    if (window.allowRemote && !COMPANY_IPS.includes(ip)) {
+        const geo = await getGeoLocation();
         lat = geo.lat;
         lng = geo.lng;
     }
 
-
-    // ========================================================
-    // 前端預估日期時間
-    // 僅作 API 等待期間的備援
-    // ========================================================
-
-    const nowObj =
-        new Date();
-
-
-    const fallbackDate =
-        customDate
-
-            ? customDate.replace(
-                /[-\/]/g,
-                "/"
-            )
-
-            : nowObj
-                .toLocaleDateString(
-                    "zh-TW",
-                    {
-                        year: "numeric",
-                        month: "2-digit",
-                        day: "2-digit"
-                    }
-                )
-                .replace(/\//g, "/");
-
-
-    const fallbackTime =
-        customTime
-
-            ? customTime
-
-            : nowObj.toLocaleTimeString(
-                "zh-TW",
-                {
-                    hour12: false
-                }
-            );
-
-
-    // ========================================================
-    // 開始送出
-    // ========================================================
-
-    setSubmittingState(true);
-
-
-    try {
-
-        // ======================================================
-        // 跑動畫
-        // ======================================================
-
-        await runClockAnimation(
-            status,
-            isMakeup
-        );
-
-
-        // ======================================================
-        // 動畫結束後才呼叫後端
-        // ======================================================
-
-        const response =
-            await fetch(
-                API_ENDPOINT,
-                {
-                    method: "POST",
-
-                    body: JSON.stringify({
-
-                        userId:
-                            window.userId,
-
-                        displayName:
-                            window.userName,
-
-                        status,
-
-                        ip,
-
-                        lat,
-
-                        lng,
-
-                        customDate,
-
-                        customTime,
-
-                        isMakeup
-                    })
-                }
-            );
-
-
-        if (!response.ok) {
-
-            throw new Error(
-                `HTTP ${response.status}`
-            );
-        }
-
-
-        // ======================================================
-        // 解析後端結果
-        // ======================================================
-
-        const apiData =
-            await response.json();
-
-
-        console.log(
-            "後端打卡結果:",
-            apiData
-        );
-
-
-        const message =
-            String(
-                apiData?.message ||
-                ""
-            ).trim();
-
-
-        const resultDate =
-            apiData?.date ||
-            fallbackDate;
-
-
-        const resultTime =
-            apiData?.time ||
-            fallbackTime;
-
-
-        // ======================================================
-        // ⭐ 核心：後端不成功，就不能顯示成功
-        // ======================================================
-
-        if (
-            !isClockSuccess(message)
-        ) {
-
-            showBackendError(
-                apiData
-            );
-
-
-            // 後端拒絕後重新同步
-            await updateTodayRecords(
-                true
-            );
-
-
+    // 1. 執行流暢的圓形動畫
+    const wrapper = document.getElementById("countdownWrapper");
+    const circle = document.getElementById("circleProgress");
+    const text = document.getElementById("countdownText");
+    
+    const animationPromise = new Promise((resolve) => {
+        if (!wrapper || !circle || !text) {
+            resolve();
             return;
         }
-
-
-        // ======================================================
-        // ⭐ 後端確認成功
-        // ======================================================
-
-        Swal.fire({
-
-            icon: "success",
-
-            title:
-                isMakeup
-                    ? "🎉 補打卡成功！"
-                    : "🎉 打卡成功！",
-
-            html: `
-
-                <div style="
-                    font-size:16px;
-                    margin-top:8px;
-                ">
-
-                    <strong>
-                        打卡時間：
-                    </strong>
-
-                    <br>
-
-                    <span style="
-                        color:#2980b9;
-                        font-size:18px;
-                        font-weight:bold;
-                    ">
-                        ${resultDate}
-                        ${resultTime}
-                    </span>
-
-                </div>
-
-            `,
-
-            showConfirmButton: false,
-
-            timer: 1800,
-
-            backdrop:
-                "rgba(0,0,0,0.5)",
-
-            customClass: {
-                popup:
-                    "custom-swal-popup"
+        wrapper.style.display = "flex";
+        text.textContent = isMakeup ? "補打卡中..." : "打卡中...";
+        
+        const colors = {
+            上班: { start: { r:52, g:152, b:219 }, end: { r:41, g:128, b:185 } },
+            下班: { start: { r:46, g:204, b:113 }, end: { r:39, g:174, b:96 } },
+            補打卡: { start: { r:243, g:156, b:18 }, end: { r:243, g:156, b:18 } }
+        };
+        
+        const { start: startColor, end: endColor } = isMakeup ? colors.補打卡 : (colors[status] || colors.上班);
+        const radius = 50;
+        const circumference = 2 * Math.PI * radius;
+        circle.style.strokeDasharray = circumference;
+        circle.style.strokeDashoffset = circumference;
+        let progress = 0;
+        
+        function animate() {
+            progress = Math.min(progress + 0.015, 1);
+            circle.style.strokeDashoffset = circumference * (1 - progress);
+            const rC = Math.round(startColor.r*(1-progress) + endColor.r*progress);
+            const gC = Math.round(startColor.g*(1-progress) + endColor.g*progress);
+            const bC = Math.round(startColor.b*(1-progress) + endColor.b*progress);
+            circle.style.stroke = `rgb(${rC},${gC},${bC})`;
+            
+            if(progress < 1) {
+                requestAnimationFrame(animate);
+            } else {
+                wrapper.style.transition = "opacity 0.2s";
+                wrapper.style.opacity = 0;
+                setTimeout(() => {
+                    wrapper.style.display = "none";
+                    wrapper.style.opacity = 1;
+                    resolve();
+                }, 150);
             }
-        });
+        }
+        requestAnimationFrame(animate);
+    });
 
+    // 等待圓形動畫跑完
+    await animationPromise;
 
-        // ======================================================
-        // ⭐ 只有後端成功才加入前端紀錄
-        // ======================================================
+    // 2. 背景發送 API 請求後端驗證與寫入
+    fetch(API_ENDPOINT, {
+        method: "POST",
+        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+    })
+    .then(res => res.json())
+    .then(apiData => {
+        const msg = apiData?.message || "";
+        const resDate = apiData?.date || getTodayString();
+        const resTime = fixTimeFormat(apiData?.time) || new Date().toLocaleTimeString("zh-TW", { hour12: false });
 
-        appendOptimisticRecord({
-
-            status,
-
-            time:
-                resultTime,
-
-            date:
-                resultDate,
-
-            ip,
-
-            isMakeup
-        });
-
-
-        // ======================================================
-        // 發送 LINE Flex Message
-        // ======================================================
-
-        try {
-
-            await sendSelfMessage({
-
-                userName:
-                    window.userName,
-
-                status,
-
-                date:
-                    resultDate,
-
-                time:
-                    resultTime,
-
-                netType:
-                    window.allowRemote &&
-                    !COMPANY_IPS.includes(ip)
-
-                        ? "異地打卡(GPS)"
-
-                        : "公司網路"
+        // 判斷後端回傳的訊息是否為成功或更新成功
+        if (msg.includes("成功")) {
+            Swal.fire({
+                icon: "success",
+                title: `🎉 ${msg}`,
+                html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
+                showConfirmButton: false, 
+                timer: 1600, 
+                backdrop: "rgba(0,0,0,0.5)",
+                customClass: { popup: 'custom-swal-popup' }
             });
 
-        } catch (e) {
+            // 成功才將紀錄插入前端畫面與快取
+            appendOptimisticRecord({
+                status: status,
+                time: resTime,
+                ip: ip,
+                isMakeup: isMakeup
+            });
 
-            console.error(
-                "LINE 訊息發送失敗:",
-                e
-            );
+            try {
+                sendSelfMessage({
+                    userName: window.userName,
+                    status: status,
+                    date: resDate,
+                    time: resTime,
+                    netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+                });
+            } catch (e) {}
+
+        } else {
+            // 後端擋下（例如：重複打卡、上限、順序錯誤等），跳出警告提示並重新同步畫面
+            Swal.fire({
+                icon: "warning",
+                title: "打卡限制提示",
+                html: `<span style="color:#e67e22; font-weight:bold; font-size: 16px;">${msg}</span>`,
+                confirmButtonText: "確定",
+                customClass: { popup: 'custom-swal-popup' }
+            });
+            
+            // 立即向後端同步最新狀態，修正前端畫面
+            updateTodayRecords(true);
         }
-
-
-        // ======================================================
-        // 延遲重新向後端同步
-        // ======================================================
-
-        setTimeout(
-            () => updateTodayRecords(true),
-            5000
-        );
-
-
-    } catch (err) {
-
-        console.error(
-            "背景同步失敗:",
-            err
-        );
-
-
+    })
+    .catch(err => {
+        console.error("背景同步失敗:", err);
         Swal.fire({
-
             icon: "error",
-
-            title: "打卡失敗",
-
-            html: `
-
-                <div style="
-                    font-size:16px;
-                    line-height:1.7;
-                    color:#e74c3c;
-                ">
-
-                    無法連線到打卡系統。
-
-                    <br>
-
-                    請確認網路後再試一次。
-
-                </div>
-
-            `,
-
-            confirmButtonText:
-                "確定",
-
-            customClass: {
-                popup:
-                    "custom-swal-popup"
-            }
+            title: "連線異常",
+            text: "無法連線至伺服器，請稍後再試。",
+            confirmButtonText: "確定"
         });
-
-
-        // API 失敗後重新取得紀錄
-        await updateTodayRecords(true);
-
-
-    } finally {
-
-        // ======================================================
-        // 不論成功、拒絕、錯誤
-        // 最後都解除送出鎖定
-        // ======================================================
-
-        setSubmittingState(false);
-    }
+    });
 }
-
-
-// ============================================================
-// 立即加入前端紀錄
-// 注意：只有後端確認成功才會呼叫
-// ============================================================
-
-function appendOptimisticRecord(
-    newRecord
-) {
-
-    let cachedRecords = [];
-
-
-    try {
-
-        const raw =
-            sessionStorage.getItem(
-                "cached_today_records"
-            );
-
-        if (raw) {
-
-            cachedRecords =
-                JSON.parse(raw);
-        }
-
-    } catch (e) {
-
-        console.error(
-            "讀取快取紀錄失敗:",
-            e
-        );
-    }
-
-
-    // 同一狀態 + 同一時間避免重複
-    const exists =
-        cachedRecords.some(
-            r =>
-                r.status ===
-                    newRecord.status &&
-                fixTimeFormat(r.time) ===
-                    fixTimeFormat(
-                        newRecord.time
-                    )
-        );
-
-
-    if (!exists) {
-
-        cachedRecords.push(
-            newRecord
-        );
-
-        sessionStorage.setItem(
-            "cached_today_records",
-            JSON.stringify(
-                cachedRecords
-            )
-        );
-
-        renderRecords(
-            cachedRecords
-        );
-    }
-}
-
-
-// ============================================================
-// 取得今天日期
-// ============================================================
 
 function getTodayString() {
-
-    const now =
-        new Date();
-
-    return now
-        .toLocaleDateString(
-            "zh-TW",
-            {
-                year: "numeric",
-                month: "2-digit",
-                day: "2-digit"
-            }
-        )
-        .replace(/\//g, "/");
+    const now = new Date();
+    return now.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
 }
 
-
-// ============================================================
-// 共用紀錄渲染
-// ============================================================
-
+/* ===== 共用紀錄渲染函式 ===== */
 function renderRecords(data) {
-
-    if (
-        !data ||
-        !data.length
-    ) {
-
-        todayRecords.innerHTML =
-            `<div class="records-empty">
-                今日尚無打卡紀錄
-            </div>`;
-
+    if (!data || !data.length) {
+        todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
         return;
     }
 
-
-    const recordsHTML =
-        data.map(r => {
-
-            const color =
-                r.status === "下班"
-                    ? "#2ecc71"
-                    : "#3498db";
-
-
-            const time =
-                fixTimeFormat(
-                    r.time
-                );
-
-
-            const networkLabel =
-                COMPANY_IPS.includes(
-                    r.ip
-                )
-                    ? "公司網路"
-                    : "異地打卡";
-
-
-            const networkColor =
-                COMPANY_IPS.includes(
-                    r.ip
-                )
-                    ? "#7f8c8d"
-                    : "#e67e22";
-
-
-            const makeupBadge =
-                r.isMakeup
-
-                    ? `<span class="badge-makeup">
-                        待審核
-                       </span>`
-
-                    : "";
-
-
-            return `
-
-                <div
-                    class="record-item"
-                    style="
-                        border-left-color:
-                        ${color};
-                    "
-                >
-
-                    <div class="record-info">
-
-                        <div
-                            class="record-status"
-                        >
-                            ${r.status}
-                            ${makeupBadge}
-                        </div>
-
-                        <div
-                            class="record-details"
-                            style="
-                                color:
-                                ${networkColor};
-                            "
-                        >
-                            ${networkLabel}
-                        </div>
-
-                    </div>
-
-                    <div
-                        class="record-time"
-                        style="
-                            color:${color};
-                        "
-                    >
-                        ${time}
-                    </div>
-
-                </div>
-
-            `;
-
-        }).join("");
-
-
-    todayRecords.innerHTML =
-        recordsHTML;
-}
-
-
-// ============================================================
-// 今日紀錄非同步更新
-// ============================================================
-
-async function updateTodayRecords(
-    isFastRender = false
-) {
-
-    if (!window.userId) return;
-
-
-    if (
-        !isFastRender &&
-        !sessionStorage.getItem(
-            "cached_today_records"
-        )
-    ) {
-
-        todayRecords.innerHTML = `
-
-            <div
-                class="record-item"
-                style="
-                    border-left-color:#bdc3c7;
-                    opacity:0.6;
-                "
-            >
-
-                <div class="record-info">
-
-                    <div
-                        style="
-                            background:#e0e0e0;
-                            width:80px;
-                            height:16px;
-                            border-radius:4px;
-                            margin-bottom:6px;
-                        "
-                    ></div>
-
-                    <div
-                        style="
-                            background:#e0e0e0;
-                            width:60px;
-                            height:12px;
-                            border-radius:4px;
-                        "
-                    ></div>
-
-                </div>
-
-                <div
-                    style="
-                        background:#e0e0e0;
-                        width:50px;
-                        height:20px;
-                        border-radius:4px;
-                    "
-                ></div>
-
+    const recordsHTML = data.map(r => {
+        let color = r.status === "下班" ? "#2ecc71" : "#3498db";
+        const time = fixTimeFormat(r.time);
+        const networkLabel = COMPANY_IPS.includes(r.ip) ? "公司網路" : "異地打卡";
+        const networkColor = COMPANY_IPS.includes(r.ip) ? "#7f8c8d" : "#e67e22";
+        const makeupBadge = r.isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
+        
+        return `
+            <div class="record-item" style="border-left-color: ${color};">
+              <div class="record-info">
+                <div class="record-status">${r.status} ${makeupBadge}</div>
+                <div class="record-details" style="color: ${networkColor};">${networkLabel}</div>
+              </div>
+              <div class="record-time" style="color: ${color};">${time}</div>
             </div>
-
         `;
-    }
+    }).join("");
 
-
-    try {
-
-        const res =
-            await fetch(
-                `${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(getTodayString())}`
-            );
-
-
-        if (!res.ok) {
-
-            throw new Error(
-                `HTTP ${res.status}`
-            );
-        }
-
-
-        const data =
-            await res.json();
-
-
-        sessionStorage.setItem(
-            "cached_today_records",
-            JSON.stringify(data)
-        );
-
-
-        renderRecords(
-            data
-        );
-
-
-    } catch (err) {
-
-        console.error(
-            "今日紀錄讀取失敗:",
-            err
-        );
-
-
-        if (
-            !sessionStorage.getItem(
-                "cached_today_records"
-            )
-        ) {
-
-            todayRecords.innerHTML = `
-
-                <div
-                    class="records-empty"
-                    style="
-                        color:#e74c3c;
-                    "
-                >
-                    今日打卡紀錄讀取失敗
-                </div>
-
-            `;
-        }
-    }
+    todayRecords.innerHTML = recordsHTML;
 }
 
+/* ===== 今日紀錄非同步更新函式 ====== */
+async function updateTodayRecords(isFastRender = false){
+  if (!window.userId) return;
+  
+  if (!isFastRender && !sessionStorage.getItem("cached_today_records")) {
+      todayRecords.innerHTML = `
+        <div class="record-item" style="border-left-color: #bdc3c7; opacity: 0.6;">
+          <div class="record-info">
+            <div style="background: #e0e0e0; width: 80px; height: 16px; border-radius: 4px; margin-bottom: 6px;"></div>
+            <div style="background: #e0e0e0; width: 60px; height: 12px; border-radius: 4px;"></div>
+          </div>
+          <div style="background: #e0e0e0; width: 50px; height: 20px; border-radius: 4px;"></div>
+        </div>
+      `;
+  }
+  
+  try {
+    const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`);
+    const data = await res.json();
 
-// ============================================================
-// 上班按鈕
-// ============================================================
+    // 儲存至 sessionStorage 快取
+    sessionStorage.setItem("cached_today_records", JSON.stringify(data));
 
-btnStart.onclick = () => {
-
-    if (window.clockSubmitting)
-        return;
-
-    performClockIn(
-        "上班"
-    );
-};
-
-
-// ============================================================
-// 下班按鈕
-// ============================================================
-
-btnEnd.onclick = () => {
-
-    if (window.clockSubmitting)
-        return;
-
-    performClockIn(
-        "下班"
-    );
-};
-
-
-// ============================================================
-// 管理員審核
-// ============================================================
-
-const btnApprove =
-    document.getElementById(
-        "btnApprove"
-    );
-
-
-if (btnApprove) {
-
-    btnApprove.onclick = () => {
-
-        window.location.href =
-            "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
-    };
+    renderRecords(data);
+  } catch (err) {
+    console.error(err);
+    if (!sessionStorage.getItem("cached_today_records")) {
+        todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">今日打卡紀錄讀取失敗</div>`;
+    }
+  }
 }
 
+document.getElementById("btnStart").onclick = () => performClockIn("上班");
+document.getElementById("btnEnd").onclick = () => performClockIn("下班");
+
+document.getElementById("btnApprove").onclick = () => {
+    window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
+};
 </script>
-
 
 </body>
 </html>
-
-
-
-
-
-
-
