@@ -156,7 +156,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     font-weight: bold; 
     color: #2c3e50;
     white-space: nowrap; 
-}    
+}
 </style>
 </head>
 <body>
@@ -169,7 +169,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     <button id="btnEnd" disabled>同步中…</button>
   </div>
   
-  <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
+   <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
 <div id="countdownWrapper">
     <svg width="120" height="120">
         <circle cx="60" cy="60" r="50" stroke="#eee" stroke-width="12" fill="none"></circle>
@@ -177,10 +177,10 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     </svg>
     <div id="countdownText">打卡中...</div>
 </div>
-
-  <!-- 今日紀錄卡片 -->
-  <div class="section-container">
-    <div class="section-title">📋 今日打卡紀錄</div>
+    
+    <!-- 優化後的今日紀錄容器 -->
+  <div id="todayRecordsContainer">
+    <div class="records-title">📋 今日打卡紀錄</div>
     <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
   </div>
 
@@ -188,7 +188,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
 </div>
  
 <script>
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbz8UMo_fpm8alaa42T5mb-ptSQzPn6yvT2ZMf_eKVeI4l-w-TuIAI8v_FhYuADrJV3R/exec";
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzYBRHv9aLw_uIxbXot_XFDDBBjP2_3rEH3b6ScktA98Xt02HvZICG9g0ECS20cJGJv/exec";
 const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.52.100.79"];
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
@@ -279,7 +279,7 @@ async function updateStatus(forceRefresh = false) {
     window.allowRemote = remoteAllowed;
 
     if (remoteAllowed) {
-        statusInfo.textContent = "有效打卡區(異地)";
+        statusInfo.textContent = "有效打卡區 (異地)";
         statusInfo.style.background = "#2ecc71";
         setButtonsLock(false, "上班", "下班");
     } else {
@@ -317,67 +317,95 @@ function fixTimeFormat(t) {
     return t;
 }
 
-// ====== 初始化載入 (加入快取秒開機制) ======
+// ====== 初始化載入 ======
 window.onload = async () => {
-  statusInfo.textContent = "檢查中...";
+  statusInfo.textContent = "正在檢查網路狀態...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 1. 優先從 LocalStorage / SessionStorage 載入畫面，達到秒開效果
-  loadUserFromCache();
-
   try {
-    // 2. 平行執行 LIFF 初始化與 IP 預載入
     await Promise.all([
       initUser(),
       preloadIP()
     ]);
     
     await updateStatus(true);
-    await updateTodayRecords(false);
+    await updateTodayRecords();
     await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
-    if (!window.userId) {
-        userInfo.textContent = "初始化失敗";
-    }
-    statusInfo.textContent = "重整失敗";
+    userInfo.textContent = "初始化失敗";
+    statusInfo.textContent = "請重新整理網頁";
     statusInfo.style.background = "#e74c3c";
   }
 };
 
-/* ===== 打卡後發送 Flex Message ===== */
-async function sendSelfMessage(record) {
-    if (!liff.isInClient()) return;
+/* ===== LINE App 專用：高穩定度打卡 Flex Message 發送 (已整合防呆與重試機制) ===== */
+async function sendSelfMessage(record, maxRetries = 3) {
+    // 1. 確保身處 LINE App 內且已經登入
+    if (!liff.isInClient()) {
+        console.warn("目前不在 LINE App 內，無法使用 liff.sendMessages()");
+        return;
+    }
+
+    if (!liff.isLoggedIn()) {
+        console.warn("使用者尚未登入 LINE");
+        return;
+    }
+
     let headerColor = record.status === "下班" ? "#2ecc71" : "#3498db"; 
-    try {
-        await liff.sendMessages([{
-            type: 'flex',
-            altText: '打卡通知',
-            contents: {
-                type: "bubble",
-                header: {
-                    type: "box", layout: "vertical",
-                    contents: [{ type: "text", text: `${record.userName} 已打卡`, weight: "bold", size: "lg", color: "#ffffff" }],
-                    backgroundColor: headerColor, paddingAll: "12px"
-                },
-                body: {
-                    type: "box", layout: "vertical", spacing: "md",
-                    contents: [
-                        { type: "text", text: `狀態：${record.status}`, size: "md" },
-                        { type: "text", text: `時間：${record.date} ${record.time}`, size: "md" },
-                        { type: "text", text: `網路：${record.netType}`, size: "md" }
-                    ]
-                }
+    
+    // 2. 組合 Flex Message，並使用 String() 確保所有欄位皆為字串型態，避免 API 拒絕
+    const flexMessage = {
+        type: 'flex',
+       altText: `【打卡通知】${record.status}成功`,
+        contents: {
+            type: "bubble",
+            header: {
+                type: "box", layout: "vertical",
+                contents: [{ type: "text", text: `${String(record.userName)} 已打卡`, weight: "bold", size: "lg", color: "#ffffff" }],
+                backgroundColor: headerColor, paddingAll: "12px"
+            },
+            body: {
+                type: "box", layout: "vertical", spacing: "md",
+                contents: [
+                    { type: "text", text: `狀態：${String(record.status)}`, size: "md" },
+                    { type: "text", text: `時間：${String(record.date)} ${String(record.time)}`, size: "md" },
+                    { type: "text", text: `網路：${String(record.netType)}`, size: "md" }
+                ]
             }
-        }]);
-        await new Promise(r => setTimeout(r, 800));
-    } catch(err) {
-        console.error("LIFF 訊息傳送失敗:", err);
+        }
+    };
+
+    // 3. 帶有重試機制的發送流程（應對 LINE App 內網路瞬間不穩）
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+            const response = await liff.sendMessages([flexMessage]);
+            console.log("LIFF 訊息傳送成功", response);
+            
+            // 成功後短暫停頓
+            await new Promise(r => setTimeout(r, 500));
+            return; 
+            
+        } catch (err) {
+            console.error(`LIFF 訊息傳送失敗 (第 ${attempt}/${maxRetries} 次嘗試):`, err.code, err.message, err);
+            
+            // 若為權限錯誤 (403)，重試也無效，直接跳出提示
+            if (err.code === 403 || (err.message && err.message.includes('permissions'))) {
+                console.error("請檢查 LINE Developers 後台是否已勾選 chat_message.write 權限！");
+                break;
+            }
+
+            if (attempt === maxRetries) {
+                console.error("已達最大重試次數，打卡訊息發送失敗。");
+            } else {
+                // 遞增等待時間（例如第1次等1秒，第2次等2秒）後再試
+                await new Promise(r => setTimeout(r, attempt * 1000));
+            }
+        }
     }
 }
-
 // ===== 圓形漸層動畫打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
@@ -512,63 +540,47 @@ function getTodayString() {
     return now.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
 }
 
-/* ===== 共用紀錄渲染函式 ===== */
-function renderRecords(data) {
-    if (!data || !data.length) {
-        todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
-        return;
-    }
-
-    const recordsHTML = data.map(r => {
-        let color = r.status === "下班" ? "#2ecc71" : "#3498db";
-        const time = fixTimeFormat(r.time);
-        const networkLabel = COMPANY_IPS.includes(r.ip) ? "公司網路" : "異地打卡";
-        const networkColor = COMPANY_IPS.includes(r.ip) ? "#7f8c8d" : "#e67e22";
-        const makeupBadge = r.isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
-        
-        return `
-            <div class="record-item" style="border-left-color: ${color};">
-              <div class="record-info">
-                <div class="record-status">${r.status} ${makeupBadge}</div>
-                <div class="record-details" style="color: ${networkColor};">${networkLabel}</div>
-              </div>
-              <div class="record-time" style="color: ${color};">${time}</div>
-            </div>
-        `;
-    }).join("");
-
-    todayRecords.innerHTML = recordsHTML;
-}
-
-/* ===== 優化後的今日紀錄非同步更新函式 (支援快取與骨架屏) ===== */
-async function updateTodayRecords(isFastRender = false){
+/* ===== 優化後的今日紀錄渲染函式 ===== */
+async function updateTodayRecords(){
   if (!window.userId) return;
-  
-  if (!isFastRender && !sessionStorage.getItem("cached_today_records")) {
-      todayRecords.innerHTML = `
-        <div class="record-item" style="border-left-color: #bdc3c7; opacity: 0.6;">
-          <div class="record-info">
-            <div style="background: #e0e0e0; width: 80px; height: 16px; border-radius: 4px; margin-bottom: 6px;"></div>
-            <div style="background: #e0e0e0; width: 60px; height: 12px; border-radius: 4px;"></div>
-          </div>
-          <div style="background: #e0e0e0; width: 50px; height: 20px; border-radius: 4px;"></div>
-        </div>
-      `;
-  }
   
   try {
     const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`);
     const data = await res.json();
 
-    // 儲存至 sessionStorage 快取
-    sessionStorage.setItem("cached_today_records", JSON.stringify(data));
+    if (!data || !data.length) {
+      todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
+      return;
+    }
 
-    renderRecords(data);
+    const recordsHTML = data.map(r => {
+      // 上班預設藍色 (#3498db)，下班預設綠色 (#2ecc71)
+      let color = r.status === "下班" ? "#2ecc71" : "#3498db";
+      const time = fixTimeFormat(r.time);
+      
+      // 💡 根據打卡紀錄的 ip 是否在 COMPANY_IPS 內，決定顯示「公司網路」或「異地打卡」
+      const networkLabel = COMPANY_IPS.includes(r.ip) ? "公司網路" : "異地打卡";
+      
+      // 異地打卡顯示橘色提醒，公司網路維持灰色
+      const networkColor = COMPANY_IPS.includes(r.ip) ? "#7f8c8d" : "#e67e22";
+
+      const makeupBadge = r.isMakeup ? `<span class="badge-makeup">待審核</span>` : "";
+      
+      return `
+        <div class="record-item" style="border-left-color: ${color};">
+          <div class="record-info">
+            <div class="record-status">${r.status} ${makeupBadge}</div>
+            <div class="record-details" style="color: ${networkColor};">${networkLabel}</div>
+          </div>
+          <div class="record-time" style="color: ${color};">${time}</div>
+        </div>
+      `;
+    }).join("");
+
+    todayRecords.innerHTML = recordsHTML;
   } catch (err) {
     console.error(err);
-    if (!sessionStorage.getItem("cached_today_records")) {
-        todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">今日打卡紀錄讀取失敗</div>`;
-    }
+    todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">今日打卡紀錄讀取失敗</div>`;
   }
 }
 
