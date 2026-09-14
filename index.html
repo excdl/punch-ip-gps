@@ -2,222 +2,56 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>智能打卡系統</title>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
-:root {
-    --bg-color: #f0f4f8;
-    --card-bg: #ffffff;
-    --text-main: #2c3e50;
-    --text-sub: #7f8c8d;
-    --start-gradient: linear-gradient(135deg, #ff9f43, #ee5253);
-    --end-gradient: linear-gradient(135deg, #3498db, #2980b9);
-    --approve-gradient: linear-gradient(145deg, #8e44ad, #663399);
-}
+body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
+.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
+#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
+#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
+#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
+.buttons-container {display:flex;gap:15px;width:100%;}
+.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
 
-body {
-    font-family: "Arial", "Noto Sans TC", sans-serif;
-    background: var(--bg-color);
-    margin: 0;
-    padding: 0;
-    display: flex;
-    justify-content: center;
-    color: var(--text-main);
-}
+#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
+#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
 
-/* App 外框容器，充滿行動裝置畫面 */
-.app-container {
+button:disabled {opacity:0.5;cursor:not-allowed;}
+
+/* ====== 優化後的今日打卡紀錄樣式 ====== */
+#todayRecordsContainer {
     width: 100%;
-    max-width: 480px;
-    min-height: 100vh;
-    background: var(--bg-color);
-    display: flex;
-    flex-direction: column;
+    background: #fafbfc;
+    border-radius: 16px;
+    padding: 16px;
+    border: 1px solid #e1e8ed;
     box-sizing: border-box;
-    padding: 16px 16px 32px 16px;
-    gap: 16px;
 }
-
-/* App 頂部導覽列 */
-.app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 8px 4px;
-}
-.user-profile-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-/* 虛擬頭像樣式 */
-.user-avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 20px;
-    font-weight: bold;
-    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
-    flex-shrink: 0;
-}
-
-.user-profile {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-#userInfo {
-    font-size: 20px;
-    font-weight: bold;
-    color: var(--text-main);
-}
-.app-subtitle {
-    font-size: 14px;
-    font-weight: bold;
-    color: var(--text-sub);
-}
-
-/* 狀態標籤縮小 20% 且強制不換行 */
-#statusInfo {
-    font-size: 14px; 
-    font-weight: bold;
-    color: white;
-    padding: 6px 14px; 
-    border-radius: 20px;
-    background: #95a5a6;
-    text-align: center;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    flex-shrink: 0;
-}
-
-/* 核心儀表板卡片 */
-.dashboard-card {
-    background: var(--card-bg);
-    border-radius: 20px;
-    padding: 24px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 20px;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
-}
-
-/* 數位時鐘樣式 */
-.clock-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: linear-gradient(145deg, #f8fafc, #edf2f7);
-    padding: 14px 20px;
-    border-radius: 16px;
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
-    border: 1px solid #e2e8f0;
-}
-
-.time-box {
-    background: #ffffff;
-    padding: 8px 12px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
-    border: 1px solid #edf2f7;
-}
-
-#timeHour, #timeMin, #timeSec {
-    font-size: 38px;        
-    font-weight: normal;    
-    color: var(--text-main);
-    font-family: "Courier New", Courier, monospace;
-    letter-spacing: 1px;
-}
-
-.time-separator {
-    font-size: 32px;
-    font-weight: normal;
-    color: #a0aec0;
-    padding-bottom: 4px;
-    animation: pulseSeparator 1.5s infinite;
-}
-
-@keyframes pulseSeparator {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-}
-
-/* 大打卡按鈕群組 */
-.buttons-container {
-    display: flex;
-    gap: 15px;
-    width: 100%;
-}
-.buttons-container button {
-    flex: 1;
-    padding: 15px 0;
-    font-size: 22px;
-    font-weight: bold;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
-    color: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: all 0.2s;
-}
-
-#btnStart { background: var(--start-gradient); }
-#btnEnd { background: var(--end-gradient); }
-
-button:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-    box-shadow: none !important;
-    transform: none !important;
-}
-
-button:not(:disabled):active {
-    transform: scale(0.97);
-}
-
-/* 今日打卡紀錄區塊 */
-.section-container {
-    background: var(--card-bg);
-    border-radius: 16px;
-    padding: 18px;
-    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
-    border: 1px solid #ddd;
-}
-.section-title {
+.records-title {
     font-size: 16px;
     font-weight: bold;
-    color: var(--text-main);
+    color: #34495e;
     margin-bottom: 12px;
     display: flex;
     align-items: center;
-    gap: 8px;
-}
-#todayRecords {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
+    gap: 6px;
 }
 .record-item {
-    background: #fafafa;
-    border-radius: 10px;
+    background: #ffffff;
+    border-radius: 12px;
     padding: 12px 14px;
+    margin-bottom: 8px;
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 4px solid #3498db;
-    box-sizing: border-box;
-    font-size: 16px;
+    border-left: 5px solid #3498db;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    transition: transform 0.2s;
+}
+.record-item:last-child {
+    margin-bottom: 0;
 }
 .record-info {
     display: flex;
@@ -230,7 +64,7 @@ button:not(:disabled):active {
     color: #2c3e50;
 }
 .record-details {
-    font-size: 12px;
+    font-size: 13px;
     color: #7f8c8d;
 }
 .record-time {
@@ -249,32 +83,30 @@ button:not(:disabled):active {
 }
 .records-empty {
     text-align: center;
-    color: var(--text-sub);
+    color: #95a5a6;
     font-size: 15px;
     padding: 15px 0;
 }
 
-/* 簽核按鈕 */
 #btnApprove {
-    padding: 14px 20px;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 10px;
-    background: var(--approve-gradient);
-    color: white;
-    display: none;
-    width: 100%;
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: all 0.2s;
+    margin-top:10px;
+    padding:12px 20px;
+    font-size:18px;
+    font-weight:bold;
+    border-radius:10px;
+    background:linear-gradient(145deg,#8e44ad,#663399);
+    color:white;
+    display:none;
+    width:100%;
+    cursor:pointer;
+    border:none;
 }
 #btnApprove:hover {
     transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
 }
 
-/* SweetAlert2 自訂外觀 */
+/* ====== SweetAlert2 自訂現代化外觀覆寫 ====== */
 .swal2-popup.custom-swal-popup {
     border-radius: 20px !important;
     padding: 24px !important;
@@ -299,7 +131,7 @@ button:not(:disabled):active {
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
 }
 
-/* 圓形倒數動畫（全螢幕置中遮罩） */
+/* 倒數動畫（全螢幕置中遮罩） */
 #countdownWrapper {
     display: none;
     position: fixed;
@@ -328,58 +160,39 @@ button:not(:disabled):active {
 </style>
 </head>
 <body>
-
-<div class="app-container">
-  <!-- 頂部資訊列 -->
-  <div class="app-header">
-    <div class="user-profile-container">
-      <div class="user-avatar" id="userAvatar">👤</div>
-      <div class="user-profile">
-        <div id="userInfo">載入中...</div>
-        <div class="app-subtitle" id="headerDate">載入日期中...</div>
-      </div>
-    </div>
-    <div id="statusInfo">檢查中...</div>
+<div class="card">
+  <div id="userInfo">載入使用者資訊中...</div>
+  <div id="statusInfo">網路與定位初始化中…</div>
+  <div id="dateTime">載入中…</div>
+  <div class="buttons-container">
+    <button id="btnStart" disabled>同步中…</button>
+    <button id="btnEnd" disabled>同步中…</button>
   </div>
-
-  <!-- 打卡儀表板主卡片 -->
-  <div class="dashboard-card">
-    <div class="clock-container">
-      <div class="time-box"><span id="timeHour">00</span></div>
-      <span class="time-separator">:</span>
-      <div class="time-box"><span id="timeMin">00</span></div>
-      <span class="time-separator">:</span>
-      <div class="time-box"><span id="timeSec">00</span></div>
-    </div>
-
-    <div class="buttons-container">
-      <button id="btnStart" disabled>上班</button>
-      <button id="btnEnd" disabled>下班</button>
-    </div>
-  </div>
-
-  <!-- 今日紀錄卡片 -->
-  <div class="section-container">
-    <div class="section-title">📋 今日打卡紀錄</div>
-    <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
-  </div>
-
-  <!-- 主管簽核按鈕 -->
-  <button id="btnApprove">查看 | 簽核</button>
-</div>
-
-<!-- 圓形倒數動畫（全螢幕置中遮罩） -->
+  
+   <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
 <div id="countdownWrapper">
     <svg width="120" height="120">
         <circle cx="60" cy="60" r="50" stroke="#eee" stroke-width="12" fill="none"></circle>
         <circle id="circleProgress" cx="60" cy="60" r="50" stroke="#3498db" stroke-width="12" fill="none" transform="rotate(-90 60 60)"></circle>
     </svg>
-    <div id="countdownText">打卡中... (3)</div>
+    <div id="countdownText">打卡中...</div>
+</div>
+    
+    <!-- 優化後的今日紀錄容器 -->
+  <div id="todayRecordsContainer">
+    <div class="records-title">📋 今日打卡紀錄</div>
+    <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
+  </div>
+
+  <button id="btnApprove">查看 | 簽核</button>
 </div>
  
 <script>
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwG47N38cIpfYosr0MIv7AR35RG5s_vZGPZ3w8VnVuoN1TqYoACUIfvcCpEXoyqMFyrQA/exec";
-const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48"];
+
+// 【已修正】補齊與後端完全相同的 3 組公司 IP
+const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48", "27.52.100.79"];
+
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
@@ -669,7 +482,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 啟動倒數打卡動畫，避免轉圈圈讓用戶感覺當機
     const countdownPromise = runCountdown(3);
 
     let apiData = null;
@@ -684,7 +496,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         apiData = { message:"網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
     }
 
-    // 等待倒數動畫跑完
     await countdownPromise;
 
     if (apiData.message && (apiData.message.includes("成功") || apiData.message.includes("更新"))) {
@@ -722,9 +533,13 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     updateTodayRecords();
 }
 
+// 【已優化】確保產出的日期格式與後端標準 yyyy/MM/dd 完全一致
 function getTodayString() {
     const now = new Date();
-    return now.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}/${month}/${day}`;
 }
 
 function renderRecords(data) {
@@ -801,4 +616,5 @@ document.getElementById("btnApprove").onclick = () => {
 
 </body>
 </html>
+
 
