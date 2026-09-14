@@ -525,7 +525,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             customClass: { popup: 'custom-swal-popup' }
         });
 
-        // 成功時才將紀錄加入前端畫面
+        // 成功時將紀錄加入前端畫面
         appendOptimisticRecord({
             status: status,
             time: resTime,
@@ -533,7 +533,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             isMakeup: isMakeup
         });
     } else {
-        // ❌ 如果後端擋下（例如超過次數、順序錯誤），跳出紅色警告視窗提示使用者
+        // ❌ 如果後端擋下，跳出紅色警告視窗提示使用者
         Swal.fire({
             icon: "error",
             title: "打卡受阻",
@@ -546,39 +546,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
 
     // 更新下方打卡紀錄
     updateTodayRecords(true);
-}
-
-    // 3. 立即將紀錄插入前端畫面與快取，讓下方紀錄瞬間跟上
-    appendOptimisticRecord({
-        status: status,
-        time: successTime,
-        ip: ip,
-        isMakeup: isMakeup
-    });
-
-    // 4. 背景默默發送 API 與 LIFF 訊息
-    fetch(API_ENDPOINT, {
-        method: "POST",
-        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
-    })
-    .then(res => res.json())
-    .then(apiData => {
-        try {
-            sendSelfMessage({
-                userName: window.userName,
-                status: status,
-                date: apiData?.date || successDate,
-                time: apiData?.time || successTime,
-                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-            });
-        } catch (e) {}
-
-        // 5秒後靜默校正一次後端最新資料
-        setTimeout(() => updateTodayRecords(true), 5000);
-    })
-    .catch(err => {
-        console.error("背景同步失敗:", err);
-    });
 }
 
 // ===== 立即在前端畫面插入一筆紀錄（達成秒顯示） =====
