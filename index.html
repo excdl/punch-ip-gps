@@ -2,56 +2,222 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>智能打卡系統</title>
 <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
 <style>
-body {font-family:"Arial","Noto Sans TC",sans-serif;background:#f0f4f8;display:flex;justify-content:center;padding:20px;margin:0;}
-.card {background:#fff;width:95%;max-width:480px;border-radius:20px;padding:25px 20px;display:flex;flex-direction:column;align-items:center;gap:20px;box-shadow:0 15px 30px rgba(0,0,0,0.15);}
-#userInfo {font-size:28px;font-weight:bold;text-align:center;color:#2c3e50;}
-#dateTime {font-size:22px;color:#7f8c8d;text-align:center;}
-#statusInfo {font-size:20px;color:white;padding:8px 25px;border-radius:25px;text-align:center;min-width:180px;}
-.buttons-container {display:flex;gap:15px;width:100%;}
-.buttons-container button {flex:1;padding:15px 0;font-size:22px;font-weight:bold;border-radius:12px;border:none;cursor:pointer;color:white;transition:all 0.2s;}
-
-#btnStart {background: linear-gradient(135deg, #ff9f43, #ee5253);}
-#btnEnd {background: linear-gradient(135deg, #3498db, #2980b9);}
-
-button:disabled {opacity:0.5;cursor:not-allowed;}
-
-/* ====== 優化後的今日打卡紀錄樣式 ====== */
-#todayRecordsContainer {
-    width: 100%;
-    background: #fafbfc;
-    border-radius: 16px;
-    padding: 16px;
-    border: 1px solid #e1e8ed;
-    box-sizing: border-box;
+:root {
+    --bg-color: #f0f4f8;
+    --card-bg: #ffffff;
+    --text-main: #2c3e50;
+    --text-sub: #7f8c8d;
+    --start-gradient: linear-gradient(135deg, #ff9f43, #ee5253);
+    --end-gradient: linear-gradient(135deg, #3498db, #2980b9);
+    --approve-gradient: linear-gradient(145deg, #8e44ad, #663399);
 }
-.records-title {
-    font-size: 16px;
-    font-weight: bold;
-    color: #34495e;
-    margin-bottom: 12px;
+
+body {
+    font-family: "Arial", "Noto Sans TC", sans-serif;
+    background: var(--bg-color);
+    margin: 0;
+    padding: 0;
     display: flex;
-    align-items: center;
-    gap: 6px;
+    justify-content: center;
+    color: var(--text-main);
 }
-.record-item {
-    background: #ffffff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
+
+/* App 外框容器，充滿行動裝置畫面 */
+.app-container {
+    width: 100%;
+    max-width: 480px;
+    min-height: 100vh;
+    background: var(--bg-color);
+    display: flex;
+    flex-direction: column;
+    box-sizing: border-box;
+    padding: 16px 16px 32px 16px;
+    gap: 16px;
+}
+
+/* App 頂部導覽列 */
+.app-header {
     display: flex;
     justify-content: space-between;
     align-items: center;
-    border-left: 5px solid #3498db;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-    transition: transform 0.2s;
+    padding: 8px 4px;
 }
-.record-item:last-child {
-    margin-bottom: 0;
+.user-profile-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+/* 虛擬頭像樣式 */
+.user-avatar {
+    width: 46px;
+    height: 46px;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    color: white;
+    font-size: 20px;
+    font-weight: bold;
+    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
+    flex-shrink: 0;
+}
+
+.user-profile {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+#userInfo {
+    font-size: 20px;
+    font-weight: bold;
+    color: var(--text-main);
+}
+.app-subtitle {
+    font-size: 14px;
+    font-weight: bold;
+    color: var(--text-sub);
+}
+
+/* 狀態標籤縮小 20% 且強制不換行 */
+#statusInfo {
+    font-size: 14px; 
+    font-weight: bold;
+    color: white;
+    padding: 6px 14px; 
+    border-radius: 20px;
+    background: #95a5a6;
+    text-align: center;
+    white-space: nowrap;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
+    flex-shrink: 0;
+}
+
+/* 核心儀表板卡片 */
+.dashboard-card {
+    background: var(--card-bg);
+    border-radius: 20px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+}
+
+/* 數位時鐘樣式 */
+.clock-container {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    background: linear-gradient(145deg, #f8fafc, #edf2f7);
+    padding: 14px 20px;
+    border-radius: 16px;
+    box-shadow: inset 0 2px 5px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
+    border: 1px solid #e2e8f0;
+}
+
+.time-box {
+    background: #ffffff;
+    padding: 8px 12px;
+    border-radius: 10px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+    border: 1px solid #edf2f7;
+}
+
+#timeHour, #timeMin, #timeSec {
+    font-size: 38px;       
+    font-weight: normal;   
+    color: var(--text-main);
+    font-family: "Courier New", Courier, monospace;
+    letter-spacing: 1px;
+}
+
+.time-separator {
+    font-size: 32px;
+    font-weight: normal;
+    color: #a0aec0;
+    padding-bottom: 4px;
+    animation: pulseSeparator 1.5s infinite;
+}
+
+@keyframes pulseSeparator {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+}
+
+/* 大打卡按鈕群組 */
+.buttons-container {
+    display: flex;
+    gap: 15px;
+    width: 100%;
+}
+.buttons-container button {
+    flex: 1;
+    padding: 15px 0;
+    font-size: 22px;
+    font-weight: bold;
+    border-radius: 12px;
+    border: none;
+    cursor: pointer;
+    color: white;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: all 0.2s;
+}
+
+#btnStart { background: var(--start-gradient); }
+#btnEnd { background: var(--end-gradient); }
+
+button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    box-shadow: none !important;
+    transform: none !important;
+}
+
+button:not(:disabled):active {
+    transform: scale(0.97);
+}
+
+/* 今日打卡紀錄區塊 */
+.section-container {
+    background: var(--card-bg);
+    border-radius: 16px;
+    padding: 18px;
+    box-shadow: 0 10px 20px rgba(0,0,0,0.08);
+    border: 1px solid #ddd;
+}
+.section-title {
+    font-size: 16px;
+    font-weight: bold;
+    color: var(--text-main);
+    margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+#todayRecords {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+.record-item {
+    background: #fafafa;
+    border-radius: 10px;
+    padding: 12px 14px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-left: 4px solid #3498db;
+    box-sizing: border-box;
+    font-size: 16px;
 }
 .record-info {
     display: flex;
@@ -64,7 +230,7 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     color: #2c3e50;
 }
 .record-details {
-    font-size: 13px;
+    font-size: 12px;
     color: #7f8c8d;
 }
 .record-time {
@@ -83,30 +249,32 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
 }
 .records-empty {
     text-align: center;
-    color: #95a5a6;
+    color: var(--text-sub);
     font-size: 15px;
     padding: 15px 0;
 }
 
+/* 簽核按鈕 */
 #btnApprove {
-    margin-top:10px;
-    padding:12px 20px;
-    font-size:18px;
-    font-weight:bold;
-    border-radius:10px;
-    background:linear-gradient(145deg,#8e44ad,#663399);
-    color:white;
-    display:none;
-    width:100%;
-    cursor:pointer;
-    border:none;
+    padding: 14px 20px;
+    font-size: 18px;
+    font-weight: bold;
+    border-radius: 10px;
+    background: var(--approve-gradient);
+    color: white;
+    display: none;
+    width: 100%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    transition: all 0.2s;
 }
 #btnApprove:hover {
     transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
 }
 
-/* ====== SweetAlert2 自訂現代化外觀覆寫 ====== */
+/* SweetAlert2 自訂外觀 */
 .swal2-popup.custom-swal-popup {
     border-radius: 20px !important;
     padding: 24px !important;
@@ -130,7 +298,6 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     padding: 10px 24px !important;
     box-shadow: 0 4px 12px rgba(52, 152, 219, 0.3) !important;
 }
-
 /* 倒數動畫（全螢幕置中遮罩） */
 #countdownWrapper {
     display: none;
@@ -157,19 +324,41 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     color: #2c3e50;
     white-space: nowrap; 
 }
+
 </style>
 </head>
 <body>
-<div class="card">
-  <div id="userInfo">載入使用者資訊中...</div>
-  <div id="statusInfo">網路與定位初始化中…</div>
-  <div id="dateTime">載入中…</div>
-  <div class="buttons-container">
-    <button id="btnStart" disabled>同步中…</button>
-    <button id="btnEnd" disabled>同步中…</button>
+
+<div class="app-container">
+  <!-- 頂部資訊列 -->
+  <div class="app-header">
+    <div class="user-profile-container">
+      <div class="user-avatar" id="userAvatar">👤</div>
+      <div class="user-profile">
+        <div id="userInfo">載入中...</div>
+        <div class="app-subtitle" id="headerDate">載入日期中...</div>
+      </div>
+    </div>
+    <div id="statusInfo">檢查中...</div>
   </div>
-  
-   <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
+
+  <!-- 打卡儀表板主卡片 -->
+  <div class="dashboard-card">
+    <div class="clock-container">
+      <div class="time-box"><span id="timeHour">00</span></div>
+      <span class="time-separator">:</span>
+      <div class="time-box"><span id="timeMin">00</span></div>
+      <span class="time-separator">:</span>
+      <div class="time-box"><span id="timeSec">00</span></div>
+    </div>
+
+    <div class="buttons-container">
+      <button id="btnStart" disabled>上班</button>
+      <button id="btnEnd" disabled>下班</button>
+    </div>
+  </div>
+
+    <!-- 圓形倒數動畫（全螢幕置中遮罩） -->
 <div id="countdownWrapper">
     <svg width="120" height="120">
         <circle cx="60" cy="60" r="50" stroke="#eee" stroke-width="12" fill="none"></circle>
@@ -177,19 +366,20 @@ button:disabled {opacity:0.5;cursor:not-allowed;}
     </svg>
     <div id="countdownText">打卡中...</div>
 </div>
-    
-    <!-- 優化後的今日紀錄容器 -->
-  <div id="todayRecordsContainer">
-    <div class="records-title">📋 今日打卡紀錄</div>
+
+  <!-- 今日紀錄卡片 -->
+  <div class="section-container">
+    <div class="section-title">📋 今日打卡紀錄</div>
     <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
   </div>
 
+  <!-- 主管簽核按鈕 -->
   <button id="btnApprove">查看 | 簽核</button>
 </div>
  
 <script>
 const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbwG47N38cIpfYosr0MIv7AR35RG5s_vZGPZ3w8VnVuoN1TqYoACUIfvcCpEXoyqMFyrQA/exec";
-const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48","27.247.229.25"];
+const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48"];
 const MANAGERS = [
     "U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"
 ];
@@ -208,6 +398,7 @@ window.allowRemote = false;
 // ====== 更新日期時間與星期 ======
 function updateDateTime() {
     const now = new Date();
+    
     document.getElementById("timeHour").textContent = String(now.getHours()).padStart(2, '0');
     document.getElementById("timeMin").textContent = String(now.getMinutes()).padStart(2, '0');
     document.getElementById("timeSec").textContent = String(now.getSeconds()).padStart(2, '0');
@@ -228,28 +419,22 @@ function setButtonsLock(locked, startText = "上班", endText = "下班") {
     window.userReady = !locked;
 }
 
-// ====== 預載入與取得 IP (加入全域暫存避免重複請求) ======
-let cachedIPPromise = null;
-function preloadIP() {
+// ====== 預載入與取得 IP ======
+async function preloadIP() {
     const cache = sessionStorage.getItem("myIP");
-    if (cache) return Promise.resolve(cache);
+    if (cache) return cache;
 
-    if (cachedIPPromise) return cachedIPPromise;
-
-    cachedIPPromise = (async () => {
-        try {
-            const controller = new AbortController();
-            const timeoutId = setTimeout(() => controller.abort(), 2500);
-            const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
-            clearTimeout(timeoutId);
-            const data = await res.json();
-            sessionStorage.setItem("myIP", data.ip);
-            return data.ip;
-        } catch {
-            return "";
-        }
-    })();
-    return cachedIPPromise;
+    try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 2500);
+        const res = await fetch("https://api.ipify.org?format=json", { signal: controller.signal });
+        clearTimeout(timeoutId);
+        const data = await res.json();
+        sessionStorage.setItem("myIP", data.ip);
+        return data.ip;
+    } catch {
+        return "";
+    }
 }
 
 // ====== 本地快取讀取機制 (秒開畫面與打卡紀錄) ======
@@ -270,6 +455,7 @@ function loadUserFromCache() {
         }
     }
 
+    // 優先讀取 sessionStorage 中的打卡紀錄進行秒渲染
     const cachedRecords = sessionStorage.getItem("cached_today_records");
     if (cachedRecords) {
         try {
@@ -307,9 +493,9 @@ async function initUser() {
 }
 
 // ====== 狀態與打卡權限判定 ======
-async function updateStatus() {
-    const ip = await preloadIP();
-    const isCompany = COMPANY_IPS.includes(ip);
+async function updateStatus(forceRefresh = false) {
+    const cachedIP = await preloadIP();
+    const isCompany = COMPANY_IPS.includes(cachedIP);
 
     if (isCompany) {
         statusInfo.textContent = "有效打卡區";
@@ -370,25 +556,25 @@ function fixTimeFormat(t) {
     return t;
 }
 
-// ====== 初始化載入流程重整 ======
+// ====== 初始化載入 (加入快取秒開機制) ======
 window.onload = async () => {
   statusInfo.textContent = "檢查中...";
   statusInfo.style.background = "#95a5a6";
   setButtonsLock(true, "同步中...", "同步中...");
 
-  // 1. 秒開機制
+  // 1. 優先從 LocalStorage / SessionStorage 載入畫面，達到秒開效果
   loadUserFromCache();
 
   try {
-    // 2. 依序或平行處理初始化
+    // 2. 平行執行 LIFF 初始化與 IP 預載入
     await Promise.all([
       initUser(),
       preloadIP()
     ]);
     
-    // 3. 狀態與今天紀錄一次到位
-    await updateStatus();
-    await updateTodayRecords(true);
+    await updateStatus(true);
+    await updateTodayRecords(false);
+    await updateStatus(true);
 
   } catch (error) {
     console.error("初始化失敗", error);
@@ -425,12 +611,13 @@ async function sendSelfMessage(record) {
                 }
             }
         }]);
+        await new Promise(r => setTimeout(r, 800));
     } catch(err) {
         console.error("LIFF 訊息傳送失敗:", err);
     }
 }
 
-// ===== 圓形漸層動畫打卡函式 (整合樂觀更新與時間延長) =====
+// ===== 圓形漸層動畫打卡函式 =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -535,27 +722,6 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             console.error("背景傳送訊息失敗", err);
         }
 
-        // **關鍵優化：前端樂觀更新 (Optimistic Update)**
-        // 立即塞入畫面，不需空等後端回傳查詢
-        try {
-            const cachedRecords = sessionStorage.getItem("cached_today_records");
-            let currentRecords = cachedRecords ? JSON.parse(cachedRecords) : [];
-            
-            const newRecord = {
-                status: status,
-                date: apiData.date || getTodayString(),
-                time: apiData.time || new Date().toLocaleTimeString("zh-TW", { hour12: false }),
-                ip: ip,
-                isMakeup: isMakeup
-            };
-            
-            currentRecords.unshift(newRecord);
-            sessionStorage.setItem("cached_today_records", JSON.stringify(currentRecords));
-            renderRecords(currentRecords);
-        } catch (e) {
-            console.error("本地樂觀渲染失敗", e);
-        }
-
         Swal.fire({
             icon: "success",
             title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
@@ -575,11 +741,9 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         });
     }
 
-    // **關鍵優化：將延遲從 400ms 提高到 1500ms**
-    // 確保 Google Sheets 後端寫入完全落地後，再背景靜默向後端校正一次最新資料
     setTimeout(() => {
         updateTodayRecords(false);
-    }, 1500);
+    }, 400);
 }
 
 function getTodayString() {
@@ -615,7 +779,7 @@ function renderRecords(data) {
     todayRecords.innerHTML = recordsHTML;
 }
 
-/* ===== 今日紀錄非同步更新函式 ===== */
+/* ===== 優化後的今日紀錄非同步更新函式 (支援快取與骨架屏) ===== */
 async function updateTodayRecords(isFastRender = false){
   if (!window.userId) return;
   
@@ -635,7 +799,9 @@ async function updateTodayRecords(isFastRender = false){
     const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`);
     const data = await res.json();
 
+    // 儲存至 sessionStorage 快取
     sessionStorage.setItem("cached_today_records", JSON.stringify(data));
+
     renderRecords(data);
   } catch (err) {
     console.error(err);
@@ -652,7 +818,5 @@ document.getElementById("btnApprove").onclick = () => {
     window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 </script>
-
-
 </body>
 </html>
