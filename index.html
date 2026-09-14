@@ -523,15 +523,25 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
   }, 50);
 }
 
-/* ===== 今日紀錄渲染函式 ===== */
+/* ===== 今日紀錄渲染函式（已優化容錯與防呆） ===== */
 async function updateTodayRecords(){
-  if (!window.userId) return;
-  
+  if (!window.userId) return; 
   try {
-    const res = await fetch(`${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`);
-    const data = await res.json();
+    const url = `${API_ENDPOINT}?action=getToday&userId=${window.userId}&date=${getTodayString()}`;
+    const res = await fetch(url);
+    
+    // 確保回應文字可以安全解析為 JSON
+    const textData = await res.text();
+    let data;
+    try {
+      data = JSON.parse(textData);
+    } catch (parseErr) {
+      console.error("JSON 解析失敗，原始回應：", textData);
+      todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">伺服器回應格式錯誤</div>`;
+      return;
+    }
 
-    if (!data || !data.length) {
+    if (!data || !Array.isArray(data) || data.length === 0) {
       todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
       return;
     }
@@ -556,7 +566,7 @@ async function updateTodayRecords(){
 
     todayRecords.innerHTML = recordsHTML;
   } catch (err) {
-    console.error(err);
+    console.error("讀取今日紀錄發生異常：", err);
     todayRecords.innerHTML = `<div class="records-empty" style="color: #e74c3c;">今日打卡紀錄讀取失敗</div>`;
   }
 }
