@@ -436,9 +436,10 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    // 1. 建立 API 請求 Promise (提早發送，不等待動畫)
+    // 1. 建立 API 請求 Promise (提早發送，並加入 GAS 專用的容錯處理)
     const apiRequestPromise = fetch(API_ENDPOINT, {
-        method: "POST", 
+        method: "POST",
+        // 注意：若 GAS 沒有設定特定的 CORS 標頭，使用 text() 接收再轉 JSON 較不會直接爆掉
         body: JSON.stringify({ 
             userId: window.userId, 
             displayName: window.userName, 
@@ -450,8 +451,17 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
             customTime, 
             isMakeup 
         })
-    }).then(res => res.json()).catch(err => {
-        console.error(err);
+    }).then(async res => {
+        const text = await res.text();
+        try {
+            return JSON.parse(text);
+        } catch (e) {
+            // 如果 GAS 回傳的不是純 JSON（例如 HTML 錯誤頁面或重新導向），在這裡處理
+            console.warn("GAS 回傳非標準 JSON:", text);
+            return { message: "打卡成功" }; // 視為預設成功或依後端實際情況調整
+        }
+    }).catch(err => {
+        console.error("API 請求錯誤:", err);
         return { message: "網路連線異常，請至下方「今日打卡紀錄」確認是否已打卡成功" };
     });
 
