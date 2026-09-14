@@ -184,7 +184,7 @@ updateDateTime();
 
 // ====== 按鈕鎖定控制 ======
 function setButtonsLock(locked, startText = "上班", endText = "下班") {
-    if (isProcessing) return; 
+    if (isProcessing) return;
     btnStart.disabled = locked;
     btnEnd.disabled = locked;
     btnStart.textContent = startText;
@@ -192,7 +192,7 @@ function setButtonsLock(locked, startText = "上班", endText = "下班") {
     window.userReady = !locked;
 }
 
-// ====== 預載入與取得 IP ======
+// ====== 預載入與取得 IP (含 90 秒快取防呆) ======
 async function preloadIP() {
     const cachedItem = sessionStorage.getItem("myIP_cache");
     if (cachedItem) {
@@ -381,9 +381,9 @@ async function sendSelfMessage(record) {
     }
 }
 
-// ===== 圓形漸層動畫打卡函式（已修正：串接後端回應並進行錯誤攔截） =====
+// ===== 圓形漸層動畫打卡函式（完美配合後端限制與樂觀更新） =====
 async function performClockIn(status, customDate = "", customTime = "", isMakeup = false) {
-    if (isProcessing) return; 
+    if (isProcessing) return;
     
     if (!window.userReady && !isMakeup) {
         Swal.fire({ 
@@ -398,7 +398,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
     }
 
     isProcessing = true;
-    setButtonsLock(true, "處理中", "處理中"); 
+    setButtonsLock(true, "處理中", "處理中");
 
     const ip = await preloadIP();
 
@@ -422,11 +422,7 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         lng = geo.lng;
     }
 
-    const nowObj = new Date();
-    const fallbackDate = customDate ? customDate.replace(/[-\/]/g, "/") : nowObj.toLocaleDateString("zh-TW", { year: 'numeric', month: '2-digit', day: '2-digit' }).replace(/\//g, "/");
-    const fallbackTime = customTime ? customTime : nowObj.toLocaleTimeString("zh-TW", { hour12: false });
-
-    // 1. 執行流暢的圓形動畫
+    // 1. 執行流暢的圓形動畫（讓使用者覺得非常滑順）
     const wrapper = document.getElementById("countdownWrapper");
     const circle = document.getElementById("circleProgress");
     const text = document.getElementById("countdownText");
@@ -476,87 +472,71 @@ async function performClockIn(status, customDate = "", customTime = "", isMakeup
         requestAnimationFrame(animate);
     });
 
-    // 2. 發送後端 API 請求
-    const apiPromise = fetch(API_ENDPOINT, {
-        method: "POST",
-        body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
-    })
-    .then(async res => {
+    await animationPromise;
+
+    // 2. 背景發送 API 進行後端規則檢核
+    try {
+        const res = await fetch(API_ENDPOINT, {
+            method: "POST",
+            body: JSON.stringify({ userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup })
+        });
+        
         if (!res.ok) throw new Error("API request failed");
-        return res.json();
-    })
-    .catch(() => ({ message: "網路連線異常，請至下方紀錄確認", date: fallbackDate, time: fallbackTime }));
+        const apiData = await res.json();
 
-    // 同時等待動畫跑完且取得 API 真實結果
-    const [_, apiData] = await Promise.all([animationPromise, apiPromise]);
+        // 判斷後端回傳的訊息是否包含「成功」
+        const isSuccess = apiData.message && (apiData.message.includes("成功") || apiData.message.includes("完成"));
 
-    const resDate = apiData?.date || fallbackDate;
-    const resTime = apiData?.time || fallbackTime;
-    const resMessage = apiData?.message || "打卡完成";
-
-    // 3. 根據後端回傳的訊息嚴格判斷成功或失敗
-    if (resMessage.includes("成功") || resMessage.includes("完成") || resMessage.includes("更新")) {
-        // 發送 LIFF 訊息
-        try {
-            sendSelfMessage({
-                userName: window.userName,
-                status: status,
-                date: resDate,
-                time: resTime,
-                netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+        if (!isSuccess) {
+            // 後端擋下（例如：重複打卡、順序錯誤、次數滿）
+            Swal.fire({
+                icon: "warning",
+                title: "無法打卡",
+                html: `<span style="color: #e67e22; font-weight: bold;">${apiData.message}</span>`,
+                confirmButtonText: "確定",
+                customClass: { popup: 'custom-swal-popup' }
             });
-        } catch (e) {}
+        } else {
+            // 成功打卡：彈出成功視窗並更新畫面
+            const successDate = apiData.date || "";
+            const successTime = apiData.time || "";
 
-        Swal.fire({
-            icon: "success",
-            title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
-            html: `<div style="font-size: 16px; margin-top: 8px;"><strong>打卡時間：</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${resDate} ${resTime}</span></div>`,
-            showConfirmButton: false, 
-            timer: 1600, 
-            backdrop: "rgba(0,0,0,0.5)",
-            customClass: { popup: 'custom-swal-popup' }
-        });
+            Swal.fire({
+                icon: "success",
+                title: isMakeup ? "🎉 補打卡成功！" : "🎉 打卡成功！",
+                html: `<div style="font-size: 16px; margin-top: 8px;"><strong>${apiData.message}</strong><br><span style="color: #2980b9; font-size: 18px; font-weight: bold;">${successDate} ${successTime}</span></div>`,
+                showConfirmButton: false, 
+                timer: 1600, 
+                backdrop: "rgba(0,0,0,0.5)",
+                customClass: { popup: 'custom-swal-popup' }
+            });
 
-        // 只有成功才新增至前端畫面快取
-        appendOptimisticRecord({
-            status: status,
-            time: resTime,
-            ip: ip,
-            isMakeup: isMakeup
-        });
-    } else {
-        // ❌ 如果後端擋下（例如超出 3 次、順序顛倒等），彈出紅色警告提示
+            // 觸發 LIFF 訊息
+            try {
+                sendSelfMessage({
+                    userName: window.userName,
+                    status: status,
+                    date: successDate,
+                    time: successTime,
+                    netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+                });
+            } catch (e) {}
+        }
+
+        // 無論成功與否，最終都向後端拉取最新今日紀錄確保畫面百分之百同步
+        await updateTodayRecords(true);
+
+    } catch (err) {
+        console.error("打卡傳送失敗:", err);
         Swal.fire({
             icon: "error",
-            title: "打卡受阻",
-            html: `<span style="color: #c0392b; font-weight: bold; font-size: 15px;">${resMessage}</span>`,
-            confirmButtonText: "確定",
-            backdrop: "rgba(0,0,0,0.5)",
+            title: "連線異常",
+            text: "網路連線發生錯誤，請稍後再試",
             customClass: { popup: 'custom-swal-popup' }
         });
-    }
-
-    // 重新同步今日最新紀錄
-    await updateTodayRecords(true);
-
-    // 解除處理中狀態與按鈕鎖定
-    isProcessing = false;
-    setButtonsLock(false, "上班", "下班");
-}
-
-// ===== 立即在前端畫面插入一筆紀錄 =====
-function appendOptimisticRecord(newRecord) {
-    let cachedRecords = [];
-    try {
-        const raw = sessionStorage.getItem("cached_today_records");
-        if (raw) cachedRecords = JSON.parse(raw);
-    } catch (e) {}
-
-    const exists = cachedRecords.some(r => r.status === newRecord.status && r.time === newRecord.time);
-    if (!exists) {
-        cachedRecords.push(newRecord);
-        sessionStorage.setItem("cached_today_records", JSON.stringify(cachedRecords));
-        renderRecords(cachedRecords);
+    } finally {
+        isProcessing = false;
+        setButtonsLock(false, "上班", "下班");
     }
 }
 
