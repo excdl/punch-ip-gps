@@ -1,247 +1,236 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>智能打卡系統</title>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
-<script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
-<style>
-* { box-sizing: border-box; }
-body {
-    font-family: Arial, "Noto Sans TC", sans-serif;
-    background: #f0f4f8;
-    display: flex;
-    justify-content: center;
-    padding: 16px;
-    margin: 0;
-    min-height: 100vh;
-    color: #2c3e50;
-}
-.card {
-    background: #fff;
-    width: 100%;
-    max-width: 480px;
-    border-radius: 20px;
-    padding: 24px 20px 32px;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 16px;
-    box-shadow: 0 15px 30px rgba(0,0,0,0.15);
-}
-.app-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    width: 100%;
-    padding: 4px 0;
-}
-.user-profile-container {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    min-width: 0;
-}
-.user-avatar {
-    width: 46px;
-    height: 46px;
-    border-radius: 50%;
-    background: linear-gradient(135deg, #6c5ce7, #a29bfe);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: white;
-    font-size: 20px;
-    font-weight: bold;
-    box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
-    flex-shrink: 0;
-    overflow: hidden;
-}
-.user-profile {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    min-width: 0;
-}
-#userInfo {
-    font-size: 20px;
-    font-weight: bold;
-    color: #2c3e50;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 210px;
-}
-.app-subtitle {
-    font-size: 13px;
-    font-weight: bold;
-    color: #7f8c8d;
-}
-#statusInfo {
-    font-size: 13px;
-    font-weight: bold;
-    color: white;
-    padding: 6px 12px;
-    border-radius: 20px;
-    background: #95a5a6;
-    text-align: center;
-    white-space: nowrap;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.1);
-    flex-shrink: 0;
-}
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>智能打卡系統</title>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://static.line-scdn.net/liff/edge/2/sdk.js"></script>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: Arial, "Noto Sans TC", sans-serif;
+      background: #f0f4f8;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      padding: 16px;
+      margin: 0;
+      min-height: 100vh;
+      color: #2c3e50;
+    }
+    .card {
+      background: #fff;
+      width: 100%;
+      max-width: 480px;
+      border-radius: 20px;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+      box-shadow: 0 15px 30px rgba(0,0,0,0.15);
+    }
+    
+    /* 頂部使用者與狀態列 (維持第一組的功能排版，套用第二組外觀) */
+    .app-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      width: 100%;
+    }
+    .user-profile-container {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      min-width: 0;
+    }
+    .user-avatar {
+      width: 44px;
+      height: 44px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #6c5ce7, #a29bfe);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 18px;
+      font-weight: bold;
+      box-shadow: 0 4px 10px rgba(108, 92, 231, 0.3);
+      flex-shrink: 0;
+      overflow: hidden;
+    }
+    .user-profile {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+    }
+    #userInfo {
+      font-size: 18px;
+      font-weight: bold;
+      color: #2c3e50;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 180px;
+    }
+    .app-subtitle {
+      font-size: 13px;
+      color: #7f8c8d;
+    }
+    #statusInfo {
+      font-size: 13px;
+      font-weight: bold;
+      color: white;
+      padding: 6px 12px;
+      border-radius: 20px;
+      background: #95a5a6;
+      text-align: center;
+      white-space: nowrap;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+      flex-shrink: 0;
+    }
 
-/* 時鐘面板 */
-.clock-container {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 8px;
-    background: linear-gradient(145deg, #f8fafc, #edf2f7);
-    padding: 14px 20px;
-    border-radius: 16px;
-    box-shadow: inset 0 2px 5px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
-    border: 1px solid #e2e8f0;
-    width: 100%;
-}
-.time-box {
-    background: #ffffff;
-    padding: 8px 12px;
-    border-radius: 10px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.05);
-    border: 1px solid #edf2f7;
-}
-#timeHour, #timeMin, #timeSec {
-    font-size: 36px;
-    font-weight: normal;
-    color: #2c3e50;
-    font-family: "Courier New", Courier, monospace;
-    letter-spacing: 1px;
-}
-.time-separator {
-    font-size: 30px;
-    font-weight: normal;
-    color: #a0aec0;
-    padding-bottom: 4px;
-    animation: pulseSeparator 1.5s infinite;
-}
-@keyframes pulseSeparator {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.4; }
-}
+    /* 時鐘容器 (第一組的精緻時鐘外型) */
+    .clock-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      background: linear-gradient(145deg, #f8fafc, #edf2f7);
+      padding: 12px 18px;
+      border-radius: 16px;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.05), 0 4px 12px rgba(0,0,0,0.03);
+      border: 1px solid #e2e8f0;
+      width: 100%;
+    }
+    .time-box {
+      background: #ffffff;
+      padding: 6px 10px;
+      border-radius: 10px;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+      border: 1px solid #edf2f7;
+    }
+    #timeHour, #timeMin, #timeSec {
+      font-size: 34px;
+      font-weight: normal;
+      color: #2c3e50;
+      font-family: "Courier New", Courier, monospace;
+      letter-spacing: 1px;
+    }
+    .time-separator {
+      font-size: 28px;
+      font-weight: normal;
+      color: #a0aec0;
+      padding-bottom: 4px;
+      animation: pulseSeparator 1.5s infinite;
+    }
+    @keyframes pulseSeparator {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
 
-.buttons-container { display: flex; gap: 15px; width: 100%; }
-.buttons-container button {
-    flex: 1;
-    padding: 15px 0;
-    font-size: 22px;
-    font-weight: bold;
-    border-radius: 12px;
-    border: none;
-    cursor: pointer;
-    color: white;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: all 0.2s;
-}
-#btnStart { background: linear-gradient(135deg, #ff9f43, #ee5253); }
-#btnEnd { background: linear-gradient(135deg, #3498db, #2980b9); }
-button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none !important; }
-button:not(:disabled):active { transform: scale(0.97); }
+    /* 打卡按鈕 (第二組的簡潔俐落風格) */
+    .buttons-container { display: flex; gap: 15px; width: 100%; }
+    .buttons-container button {
+      flex: 1;
+      padding: 15px 0;
+      font-size: 22px;
+      font-weight: bold;
+      border-radius: 12px;
+      border: none;
+      cursor: pointer;
+      color: white;
+      transition: all 0.2s;
+    }
+    #btnStart { background: linear-gradient(135deg, #ff9f43, #ee5253); }
+    #btnEnd { background: linear-gradient(135deg, #3498db, #2980b9); }
+    button:disabled { opacity: 0.5; cursor: not-allowed; }
 
-/* 今日紀錄 */
-#todayRecordsContainer {
-    width: 100%;
-    background: #fafbfc;
-    border-radius: 16px;
-    padding: 16px;
-    border: 1px solid #e1e8ed;
-}
-.records-title {
-    font-size: 16px;
-    font-weight: bold;
-    color: #34495e;
-    margin-bottom: 12px;
-    display: flex;
-    align-items: center;
-    gap: 6px;
-}
-.record-item {
-    background: #fff;
-    border-radius: 12px;
-    padding: 12px 14px;
-    margin-bottom: 8px;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    border-left: 5px solid #3498db;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.04);
-}
-.record-item:last-child { margin-bottom: 0; }
-.record-info { display: flex; flex-direction: column; gap: 2px; }
-.record-status { font-size: 16px; font-weight: bold; color: #2c3e50; }
-.record-details { font-size: 13px; color: #7f8c8d; }
-.record-time { font-size: 18px; font-weight: bold; color: #2c3e50; }
-.badge-makeup {
-    background: #e67e22;
-    color: white;
-    font-size: 11px;
-    padding: 2px 6px;
-    border-radius: 6px;
-    margin-left: 4px;
-    vertical-align: middle;
-}
-.records-empty { text-align: center; color: #95a5a6; font-size: 15px; padding: 15px 0; }
+    /* 今日紀錄 */
+    #todayRecordsContainer {
+      width: 100%;
+      background: #fafbfc;
+      border-radius: 16px;
+      padding: 16px;
+      border: 1px solid #e1e8ed;
+    }
+    .records-title {
+      font-size: 16px;
+      font-weight: bold;
+      color: #34495e;
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    #todayRecords {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .record-item {
+      background: #fff;
+      border-radius: 12px;
+      padding: 12px 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-left: 5px solid #3498db;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.04);
+    }
+    .record-info { display: flex; flex-direction: column; gap: 2px; }
+    .record-status { font-size: 16px; font-weight: bold; color: #2c3e50; }
+    .record-details { font-size: 13px; color: #7f8c8d; }
+    .record-time { font-size: 18px; font-weight: bold; color: #2c3e50; }
+    .badge-makeup {
+      background: #e67e22;
+      color: white;
+      font-size: 11px;
+      padding: 2px 6px;
+      border-radius: 6px;
+      margin-left: 4px;
+      vertical-align: middle;
+    }
+    .records-empty { text-align: center; color: #95a5a6; font-size: 15px; padding: 15px 0; }
 
-/* 簽核按鈕 */
-#btnApprove {
-    padding: 14px 20px;
-    font-size: 18px;
-    font-weight: bold;
-    border-radius: 10px;
-    background: linear-gradient(145deg, #8e44ad, #663399);
-    color: white;
-    display: none;
-    width: 100%;
-    cursor: pointer;
-    border: none;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.1);
-    transition: all 0.2s;
-}
-#btnApprove:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 15px rgba(0,0,0,0.15);
-}
+    /* 主管簽核 */
+    #btnApprove {
+      padding: 12px 20px;
+      font-size: 18px;
+      font-weight: bold;
+      border-radius: 10px;
+      background: linear-gradient(145deg, #8e44ad, #663399);
+      color: white;
+      display: none;
+      width: 100%;
+      cursor: pointer;
+      border: none;
+      transition: all 0.2s;
+    }
 
-/* SweetAlert */
-.swal2-popup.custom-swal-popup {
-    border-radius: 20px !important;
-    padding: 24px !important;
-    font-family: Arial, "Noto Sans TC", sans-serif !important;
-    box-shadow: 0 20px 40px rgba(0,0,0,0.2) !important;
-}
-.swal2-title { font-size: 22px !important; color: #2c3e50 !important; font-weight: bold !important; }
-.swal2-html-container { font-size: 16px !important; color: #555 !important; }
-.swal2-styled.swal2-confirm {
-    background: linear-gradient(135deg, #3498db, #2980b9) !important;
-    border-radius: 10px !important;
-    font-size: 16px !important;
-    font-weight: bold !important;
-    padding: 10px 24px !important;
-}
-
-/* 小螢幕調整 */
-@media (max-width: 360px) {
-    #timeHour, #timeMin, #timeSec { font-size: 30px; }
-    .time-box { padding: 7px 9px; }
-    .clock-container { padding: 12px 12px; gap: 5px; }
-    #statusInfo { font-size: 12px; padding: 5px 10px; }
-    #userInfo { max-width: 160px; }
-}
-</style>
+    /* SweetAlert */
+    .swal2-popup.custom-swal-popup {
+      border-radius: 20px !important;
+      padding: 24px !important;
+      font-family: Arial, "Noto Sans TC", sans-serif !important;
+      box-shadow: 0 20px 40px rgba(0,0,0,0.2) !important;
+    }
+    .swal2-title { font-size: 22px !important; color: #2c3e50 !important; font-weight: bold !important; }
+    .swal2-html-container { font-size: 16px !important; color: #555 !important; }
+    .swal2-styled.swal2-confirm {
+      background: linear-gradient(135deg, #3498db, #2980b9) !important;
+      border-radius: 10px !important;
+      font-size: 16px !important;
+      font-weight: bold !important;
+      padding: 10px 24px !important;
+    }
+  </style>
 </head>
 <body>
   <div class="card">
-    <!-- 頂部資訊列 (大頭貼 + 使用者名稱 + 日期 + 狀態) -->
+    <!-- 頂部資訊列 (第一組的頭像與日期功能，第二組的外觀) -->
     <div class="app-header">
         <div class="user-profile-container">
             <div class="user-avatar" id="userAvatar">👤</div>
@@ -253,7 +242,7 @@ button:not(:disabled):active { transform: scale(0.97); }
         <div id="statusInfo">檢查中...</div>
     </div>
 
-    <!-- 時鐘儀表板 -->
+    <!-- 時鐘儀表板 (第一組的跳動時鐘功能) -->
     <div class="clock-container">
         <div class="time-box"><span id="timeHour">00</span></div>
         <span class="time-separator">:</span>
@@ -268,7 +257,7 @@ button:not(:disabled):active { transform: scale(0.97); }
       <button id="btnEnd" disabled>同步中…</button>
     </div>
 
-    <!-- 今日紀錄 -->
+    <!-- 今日紀錄 (第一組的功能邏輯) -->
     <div id="todayRecordsContainer">
       <div class="records-title">📋 今日打卡紀錄</div>
       <div id="todayRecords" class="records-empty">正在載入紀錄…</div>
@@ -871,7 +860,6 @@ btnApprove.addEventListener("click", () => {
 </script>
 </body>
 </html>
-
 
 
 
