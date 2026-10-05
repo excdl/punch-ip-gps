@@ -503,7 +503,6 @@
       }, 100);
 
       try {
-        // 直接使用記憶體已快取的 IP，避免打卡當下再次觸發外部網路請求而導致 fetch aborted
         const ip = window.currentIP || await preloadIP();
         const isCompany = COMPANY_IPS.includes(ip);
 
@@ -519,11 +518,31 @@
         }
 
         const payload = { userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup };
-        const apiData = await fetchJson(API_ENDPOINT, {
-          method: "POST",
-          headers: { "Content-Type": "text/plain;charset=utf-8" },
-          body: JSON.stringify(payload)
-        }, 12000);
+        
+        let apiData = null;
+        try {
+          apiData = await fetchJson(API_ENDPOINT, {
+            method: "POST",
+            headers: { "Content-Type": "text/plain;charset=utf-8" },
+            body: JSON.stringify(payload)
+          }, 15000); // 稍微將逾時拉長到 15 秒
+        } catch (postError) {
+          // 【核心修復】如果 POST 回傳逾時或 CORS 錯誤，但實際上後端很可能已經寫入成功
+          // 我們主動去跟後端拿「今天的打卡紀錄」來驗證是否真的成功寫入
+          await new Promise(r => setTimeout(r, 1500)); // 等待 1.5 秒讓後端寫入完成
+          const dateStr = getTodayString();
+          const checkResult = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(dateStr)}`, {}, 8000).catch(() => null);
+          
+          const records = Array.isArray(checkResult) ? checkResult : (Array.isArray(checkResult?.data) ? checkResult?.data : []);
+          // 檢查剛才打卡的狀態是否已經存在於記錄中
+          const matched = records.find(r => r.status === status);
+          
+          if (matched) {
+            apiData = { success: true, date: dateStr, time: matched.time || new Date().toLocaleTimeString("zh-TW", { hour12: false }) };
+          } else {
+            throw postError; // 如果真的沒寫入成功，才把原本的錯誤拋出來
+          }
+        }
 
         if (!apiData || apiData.success !== true) {
           throw new Error(apiData?.message || "打卡失敗，請稍後再試");
