@@ -250,9 +250,13 @@
         window.userName = cachedUserName || "使用者";
         userInfo.textContent = `${window.userName} 您好`;
       }
+      
+      // 🚀 【加速關鍵 1】頁面一載入立刻從 sessionStorage 渲染快取紀錄，實現 0 秒顯示
       const cachedRecords = sessionStorage.getItem("cached_today_records");
       if (cachedRecords) {
         try { renderRecords(JSON.parse(cachedRecords)); } catch (error) {}
+      } else {
+        todayRecords.innerHTML = `<div class="records-empty">載入中...</div>`;
       }
     }
 
@@ -402,6 +406,8 @@
         const date = getTodayString();
         const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 8000);
         const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+        
+        // 🚀 【加速關鍵 2】將最新抓到的資料更新至 sessionStorage，下次開網頁直接用
         sessionStorage.setItem("cached_today_records", JSON.stringify(data));
         renderRecords(data);
       } catch (error) {
@@ -512,6 +518,18 @@
           netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
         }).catch(() => {});
 
+        // 🚀 【加速關鍵 3】打卡成功後，立即在前端「手動塞入一筆新紀錄」到畫面與快取中，不用枯等 API 回傳或重新整理
+        const cachedRecords = JSON.parse(sessionStorage.getItem("cached_today_records") || "[]");
+        cachedRecords.push({
+          status: status,
+          time: apiData.time,
+          ip: ip,
+          isMakeup: isMakeup
+        });
+        sessionStorage.setItem("cached_today_records", JSON.stringify(cachedRecords));
+        renderRecords(cachedRecords);
+
+        // 背景同步最新資料
         setTimeout(() => { updateTodayRecords(); }, 300);
 
       } catch (error) {
@@ -551,6 +569,7 @@
       statusInfo.style.background = "#95a5a6";
       setButtonsLock(true, "同步中...", "同步中...");
 
+      // 1. 瞬間讀取本地快取渲染（達成秒開）
       loadUserFromCache();
 
       try {
@@ -563,6 +582,7 @@
           return;
         }
 
+        // 2. 背景非同步向 Google 取得最新打卡紀錄與網路狀態
         await Promise.allSettled([updateStatus(), updateTodayRecords()]);
       } catch (error) {
         statusInfo.textContent = "初始化失敗，請重新整理";
