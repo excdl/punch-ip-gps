@@ -320,7 +320,7 @@
       }
 
       try {
-        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 8000);
+        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 4000);
         if (result && typeof result.allowed === "boolean") {
           window.allowRemote = result.allowed;
           sessionStorage.setItem("cached_allowRemote", result.allowed ? "true" : "false");
