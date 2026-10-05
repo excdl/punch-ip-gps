@@ -221,7 +221,7 @@
       window.userReady = !locked;
     }
 
-    // 【修正】強固版 IP 取得：增加快取保護與失敗容錯，避免因 API 瞬斷導致 IP 變成空字串
+    // 【已優化】延長至 8 秒逾時，並確保失敗時絕不卡死、立即回退
     async function preloadIP() {
       if (window.currentIP) return window.currentIP;
       const cached = sessionStorage.getItem("myIP");
@@ -229,7 +229,7 @@
 
       try {
         const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 4000);
+        const timeout = setTimeout(() => controller.abort(), 8000); // 延長至 8 秒
         const response = await fetch("https://api.ipify.org?format=json", { signal: controller.signal, cache: "no-store" });
         clearTimeout(timeout);
         if (!response.ok) throw new Error("IP API error");
@@ -241,7 +241,7 @@
           return ip;
         }
       } catch (error) {
-        // 若外部 IP 查詢失敗，嘗試抓取 sessionStorage 舊值，若無則給予預設亂數避免空字串造成誤判
+        // 發生逾時或錯誤時，直接取用快取，若無則給予預設值，保證程式繼續往下跑而不卡死
         const fallback = sessionStorage.getItem("myIP") || "unknown_ip";
         window.currentIP = fallback;
         return fallback;
@@ -291,7 +291,6 @@
       }
     }
 
-    // 【修正】穩定版狀態檢查：加入特許快取防護，避免網路抖動導致狀態反覆跳動
     async function updateStatus() {
       const ip = await preloadIP();
       const isCompany = COMPANY_IPS.includes(ip);
@@ -311,16 +310,13 @@
         return;
       }
 
-      // 嘗試向後端確認異地特許
       try {
         const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 8000);
         if (result && typeof result.allowed === "boolean") {
           window.allowRemote = result.allowed;
-          // 將授權結果暫存起來，避免下次短暫逾時直接變紅字
           sessionStorage.setItem("cached_allowRemote", result.allowed ? "true" : "false");
         }
       } catch (error) {
-        // 若 API 發生短暫逾時，優先讀取上一次成功的暫存授權狀態，防止畫面亂跳
         const lastAllow = sessionStorage.getItem("cached_allowRemote");
         if (lastAllow !== null) {
           window.allowRemote = (lastAllow === "true");
