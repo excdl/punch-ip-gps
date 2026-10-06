@@ -188,7 +188,7 @@
  * 智能打卡系統 - 前台 V2
  *************************************************/
 
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbxGp0mlz48Pk_j0j0QUKlYgaEoGVXfjZzuTXEPij19THKEHY8L-gZpA58-pdTEXnqsRmw/exec";
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzuVyY8Mwz6pEcyb882kPbA6KDxAllGc97Gjso-VuG4WAsmuVnFky_4TTBz5boFeFTBPg/exec";
 const COMPANY_IPS = ["220.134.112.245", "114.34.60.48","39.9.98.249"];
 const MANAGERS = ["U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"];
 const LIFF_ID = "2010795326-ID1oydWL";
@@ -210,7 +210,6 @@ window.allowRemote = false;
 window.userReady = false;
 window.isSubmitting = false;
 window.currentIP = "";
-window.remotePermissionLoaded = false;
 window.currentRequestId = "";
 window.lastClockStatus = "";
 window.lastClockTime = "";
@@ -306,85 +305,44 @@ async function fetchJson(url, options = {}, timeoutMs = 10000) {
   }
 }
 
-async function updateStatus(force = false) {
-    if (window.statusUpdating) return;
-
-    window.statusUpdating = true;
-
-    try {
-        // 尚未取得使用者
-        if (!window.userId) {
-            statusInfo.textContent = "等待 LINE 使用者資訊";
-            statusInfo.style.background = "#95a5a6";
-            setButtonsLock(true, "上班", "下班");
-            return;
-        }
-
-        // ============================
-        // 1. 查詢異地特許
-        // ============================
-        if (force || window.remotePermissionLoaded !== true) {
-            try {
-                const result = await fetchJson(
-                    `${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`,
-                    {},
-                    5000
-                );
-
-                if (result && result.success === true) {
-                    window.allowRemote = result.allowed === true;
-                    window.remotePermissionLoaded = true;
-
-                    console.log(
-                        "異地特許：",
-                        window.allowRemote ? "是" : "否"
-                    );
-                }
-            } catch (error) {
-                console.warn("異地特許查詢失敗：", error);
-
-                // 第一次查詢都失敗，不要誤判成有異地特許
-                if (window.remotePermissionLoaded !== true) {
-                    window.allowRemote = false;
-                }
-            }
-        }
-
-        // ============================
-        // 2. 有異地特許
-        // ============================
-        if (window.allowRemote === true) {
-            statusInfo.textContent = "有效打卡區（異地）";
-            statusInfo.style.background = "#2ecc71";
-            setButtonsLock(false, "上班", "下班");
-            return;
-        }
-
-        // ============================
-        // 3. 沒有異地特許 → 才檢查公司 IP
-        // ============================
-        const ip = await preloadIP(true);
-
-        console.log("目前 IP：", ip);
-        console.log("公司 IP：", isCompanyIP(ip));
-
-        if (isCompanyIP(ip)) {
-            statusInfo.textContent = "有效打卡區";
-            statusInfo.style.background = "#2ecc71";
-            setButtonsLock(false, "上班", "下班");
-            return;
-        }
-
-        // ============================
-        // 4. 非公司 IP + 無異地特許
-        // ============================
-        statusInfo.textContent = "無效打卡區";
-        statusInfo.style.background = "#e74c3c";
-        setButtonsLock(true, "上班", "下班");
-
-    } finally {
-        window.statusUpdating = false;
+async function updateStatus() {
+  if (window.statusUpdating) return;
+  window.statusUpdating = true;
+  try {
+    const ip = await preloadIP();
+    const isCompany = COMPANY_IPS.includes(ip);
+    if (isCompany) {
+      window.allowRemote = false;
+      statusInfo.textContent = "有效打卡區";
+      statusInfo.style.background = "#2ecc71";
+      setButtonsLock(false, "上班", "下班");
+      return;
     }
+    if (!window.userId) {
+      statusInfo.textContent = "等待 LINE 使用者資訊";
+      statusInfo.style.background = "#95a5a6";
+      setButtonsLock(true, "上班", "下班");
+      return;
+    }
+    try {
+      const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 7000);
+      window.allowRemote = result.allowed === true;
+    } catch (error) {
+      window.allowRemote = false;
+    }
+
+    if (window.allowRemote) {
+      statusInfo.textContent = "有效打卡區（異地）";
+      statusInfo.style.background = "#2ecc71";
+      setButtonsLock(false, "上班", "下班");
+    } else {
+      statusInfo.textContent = "無效打卡區";
+      statusInfo.style.background = "#e74c3c";
+      setButtonsLock(true, "上班", "下班");
+    }
+  } finally {
+    window.statusUpdating = false;
+  }
 }
 
 function getGeoLocation() {
@@ -653,66 +611,34 @@ btnApprove.onclick = () => {
 };
 
 window.addEventListener("load", async () => {
-    statusInfo.textContent = "系統初始化中...";
-    statusInfo.style.background = "#95a5a6";
+  statusInfo.textContent = "系統初始化中...";
+  statusInfo.style.background = "#95a5a6";
+  setButtonsLock(true, "同步中...", "同步中...");
 
-    setButtonsLock(true, "同步中...", "同步中...");
+  loadUserFromCache();
+  preloadIP().catch(() => {});
 
-    // 先載入本機快取，讓畫面不要空白
-    loadUserFromCache();
+  try {
+    const results = await Promise.allSettled([initUser(), preloadIP()]);
+    if (results[0].status === "rejected") throw results[0].reason;
 
-    try {
-        // ================================
-        // 1. 初始化 LINE
-        // ================================
-        const loginOK = await initUser();
-
-        if (!loginOK) {
-            statusInfo.textContent = "請完成 LINE 登入";
-            statusInfo.style.background = "#95a5a6";
-            setButtonsLock(true, "上班", "下班");
-            return;
-        }
-
-        if (!window.userId) {
-            statusInfo.textContent = "無法取得 LINE 使用者資訊";
-            statusInfo.style.background = "#e74c3c";
-            setButtonsLock(true, "上班", "下班");
-            return;
-        }
-
-        console.log("LINE 使用者初始化完成：", window.userId);
-
-        // ================================
-        // 2. 先顯示暫時狀態
-        // ================================
-        statusInfo.textContent = "確認打卡權限...";
-        statusInfo.style.background = "#95a5a6";
-
-        // ================================
-        // 3. 異地特許與今日紀錄分開執行
-        // ================================
-        await Promise.allSettled([
-            updateStatus(true),
-            updateTodayRecords()
-        ]);
-
-        // ================================
-        // 4. 初始化完成
-        // ================================
-        console.log("系統初始化完成");
-
-    } catch (error) {
-        console.error("初始化失敗:", error);
-
-        statusInfo.textContent = "初始化失敗，請重新整理";
-        statusInfo.style.background = "#e74c3c";
-
-        setButtonsLock(true, "重新整理", "重新整理");
+    if (!window.userId) {
+      statusInfo.textContent = "請完成 LINE 登入";
+      statusInfo.style.background = "#95a5a6";
+      return;
     }
+
+    await Promise.allSettled([updateStatus(), updateTodayRecords()]);
+  } catch (error) {
+    statusInfo.textContent = "初始化失敗，請重新整理";
+    statusInfo.style.background = "#e74c3c";
+    setButtonsLock(true, "重新整理", "重新整理");
+  }
 });
 </script>
 </body>
 </html>
+
+
 
 
