@@ -210,6 +210,7 @@ window.allowRemote = false;
 window.userReady = false;
 window.isSubmitting = false;
 window.currentIP = "";
+window.remotePermissionLoaded = false;
 window.currentRequestId = "";
 window.lastClockStatus = "";
 window.lastClockTime = "";
@@ -311,7 +312,17 @@ async function updateStatus(force = false) {
     window.statusUpdating = true;
 
     try {
-        // 第一次才向後端確認員工是否有異地特許
+        // 尚未取得使用者
+        if (!window.userId) {
+            statusInfo.textContent = "等待 LINE 使用者資訊";
+            statusInfo.style.background = "#95a5a6";
+            setButtonsLock(true, "上班", "下班");
+            return;
+        }
+
+        // ============================
+        // 1. 查詢異地特許
+        // ============================
         if (force || window.remotePermissionLoaded !== true) {
             try {
                 const result = await fetchJson(
@@ -323,13 +334,25 @@ async function updateStatus(force = false) {
                 if (result && result.success === true) {
                     window.allowRemote = result.allowed === true;
                     window.remotePermissionLoaded = true;
+
+                    console.log(
+                        "異地特許：",
+                        window.allowRemote ? "是" : "否"
+                    );
                 }
             } catch (error) {
-                console.warn("異地特許查詢失敗:", error);
+                console.warn("異地特許查詢失敗：", error);
+
+                // 第一次查詢都失敗，不要誤判成有異地特許
+                if (window.remotePermissionLoaded !== true) {
+                    window.allowRemote = false;
+                }
             }
         }
 
-        // ★ 有異地特許：完全不檢查 IP
+        // ============================
+        // 2. 有異地特許
+        // ============================
         if (window.allowRemote === true) {
             statusInfo.textContent = "有效打卡區（異地）";
             statusInfo.style.background = "#2ecc71";
@@ -337,8 +360,13 @@ async function updateStatus(force = false) {
             return;
         }
 
-        // ★ 沒有異地特許的人，才檢查公司 IP
-        const ip = await preloadIP();
+        // ============================
+        // 3. 沒有異地特許 → 才檢查公司 IP
+        // ============================
+        const ip = await preloadIP(true);
+
+        console.log("目前 IP：", ip);
+        console.log("公司 IP：", isCompanyIP(ip));
 
         if (isCompanyIP(ip)) {
             statusInfo.textContent = "有效打卡區";
@@ -347,7 +375,9 @@ async function updateStatus(force = false) {
             return;
         }
 
-        // 非公司 IP 且沒有異地特許
+        // ============================
+        // 4. 非公司 IP + 無異地特許
+        // ============================
         statusInfo.textContent = "無效打卡區";
         statusInfo.style.background = "#e74c3c";
         setButtonsLock(true, "上班", "下班");
@@ -356,7 +386,6 @@ async function updateStatus(force = false) {
         window.statusUpdating = false;
     }
 }
-
 
 function getGeoLocation() {
   return new Promise(resolve => {
@@ -641,7 +670,11 @@ window.addEventListener("load", async () => {
       return;
     }
 
-    await Promise.allSettled([updateStatus(), updateTodayRecords()]);
+   await Promise.allSettled([
+    updateStatus(true),
+    updateTodayRecords()
+]);
+
   } catch (error) {
     statusInfo.textContent = "初始化失敗，請重新整理";
     statusInfo.style.background = "#e74c3c";
