@@ -653,33 +653,63 @@ btnApprove.onclick = () => {
 };
 
 window.addEventListener("load", async () => {
-  statusInfo.textContent = "系統初始化中...";
-  statusInfo.style.background = "#95a5a6";
-  setButtonsLock(true, "同步中...", "同步中...");
+    statusInfo.textContent = "系統初始化中...";
+    statusInfo.style.background = "#95a5a6";
 
-  loadUserFromCache();
-  preloadIP().catch(() => {});
+    setButtonsLock(true, "同步中...", "同步中...");
 
-  try {
-    const results = await Promise.allSettled([initUser(), preloadIP()]);
-    if (results[0].status === "rejected") throw results[0].reason;
+    // 先載入本機快取，讓畫面不要空白
+    loadUserFromCache();
 
-    if (!window.userId) {
-      statusInfo.textContent = "請完成 LINE 登入";
-      statusInfo.style.background = "#95a5a6";
-      return;
+    try {
+        // ================================
+        // 1. 初始化 LINE
+        // ================================
+        const loginOK = await initUser();
+
+        if (!loginOK) {
+            statusInfo.textContent = "請完成 LINE 登入";
+            statusInfo.style.background = "#95a5a6";
+            setButtonsLock(true, "上班", "下班");
+            return;
+        }
+
+        if (!window.userId) {
+            statusInfo.textContent = "無法取得 LINE 使用者資訊";
+            statusInfo.style.background = "#e74c3c";
+            setButtonsLock(true, "上班", "下班");
+            return;
+        }
+
+        console.log("LINE 使用者初始化完成：", window.userId);
+
+        // ================================
+        // 2. 先顯示暫時狀態
+        // ================================
+        statusInfo.textContent = "確認打卡權限...";
+        statusInfo.style.background = "#95a5a6";
+
+        // ================================
+        // 3. 異地特許與今日紀錄分開執行
+        // ================================
+        await Promise.allSettled([
+            updateStatus(true),
+            updateTodayRecords()
+        ]);
+
+        // ================================
+        // 4. 初始化完成
+        // ================================
+        console.log("系統初始化完成");
+
+    } catch (error) {
+        console.error("初始化失敗:", error);
+
+        statusInfo.textContent = "初始化失敗，請重新整理";
+        statusInfo.style.background = "#e74c3c";
+
+        setButtonsLock(true, "重新整理", "重新整理");
     }
-
-   await Promise.allSettled([
-    updateStatus(true),
-    updateTodayRecords()
-]);
-
-  } catch (error) {
-    statusInfo.textContent = "初始化失敗，請重新整理";
-    statusInfo.style.background = "#e74c3c";
-    setButtonsLock(true, "重新整理", "重新整理");
-  }
 });
 </script>
 </body>
