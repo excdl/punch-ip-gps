@@ -184,7 +184,7 @@
   </div>
 
   <script>
-    const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbzpsflW2eihbbDv6L5p1JZ1jR08diny0jmCwD4MXcTJtOTGGWZCoG2DRWxMZyNKflm_SA/exec";
+    const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbx-TJmBBGg9QO9CL0W5obV9wzXnh5OmG9frgXZWV_tk7SaSkuBciWTL0TriwdTX36Ls7w/exec";
     const COMPANY_IPS  = ["220.134.112.245", "114.34.60.48"];
     const MANAGERS = ["U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"];
     const LIFF_ID = "2010795326-ID1oydWL";
@@ -285,58 +285,39 @@
     }
 
     async function updateStatus() {
-  const ip = await preloadIP();
-  const isCompany = COMPANY_IPS.includes(ip);
-  
-  if (isCompany) {
-    window.allowRemote = true; // 公司內網直接視為允許
-    statusInfo.textContent = "有效打卡區";
-    statusInfo.style.background = "#2ecc71";
-    setButtonsLock(false, "上班", "下班");
-    sessionStorage.setItem("cached_allow_remote", "true");
-    return;
-  }
+      const ip = await preloadIP();
+      const isCompany = COMPANY_IPS.includes(ip);
+      if (isCompany) {
+        window.allowRemote = false;
+        statusInfo.textContent = "有效打卡區";
+        statusInfo.style.background = "#2ecc71";
+        setButtonsLock(false, "上班", "下班");
+        return;
+      }
+      if (!window.userId) {
+        statusInfo.textContent = "等待 LINE 使用者資訊";
+        statusInfo.style.background = "#95a5a6";
+        setButtonsLock(true, "上班", "下班");
+        return;
+      }
+      try {
+        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 7000);
+        window.allowRemote = result.allowed === true;
+      } catch (error) {
+        window.allowRemote = false;
+      }
 
-  if (!window.userId) {
-    statusInfo.textContent = "等待 LINE 使用者資訊";
-    statusInfo.style.background = "#95a5a6";
-    setButtonsLock(true, "上班", "下班");
-    return;
-  }
-
-  try {
-    // 加上時間戳記防快取
-    const timestamp = new Date().getTime();
-    const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}&_t=${timestamp}`, {}, 7000);
-    
-    if (result && result.success === true) {
-      window.allowRemote = result.allowed === true;
-      // 成功取得後立即更新前端暫存
-      sessionStorage.setItem("cached_allow_remote", window.allowRemote ? "true" : "false");
-    } else {
-      throw new Error("API 回傳異常");
+      if (window.allowRemote) {
+        statusInfo.textContent = "有效打卡區（異地）";
+        statusInfo.style.background = "#2ecc71";
+        setButtonsLock(false, "上班", "下班");
+      } else {
+        statusInfo.textContent = "無效打卡區";
+        statusInfo.style.background = "#e74c3c";
+        setButtonsLock(true, "上班", "下班");
+      }
     }
-  } catch (error) {
-    // 【容錯保護】：如果網路短暫逾時或伺服器忙碌，讀取上一次成功的暫存狀態，避免畫面亂跳
-    const lastCachedRemote = sessionStorage.getItem("cached_allow_remote");
-    if (lastCachedRemote !== null) {
-      window.allowRemote = (lastCachedRemote === "true");
-    } else {
-      window.allowRemote = false;
-    }
-  }
 
-  // 根據最終判定結果顯示介面
-  if (window.allowRemote) {
-    statusInfo.textContent = "有效打卡區（異地）";
-    statusInfo.style.background = "#2ecc71";
-    setButtonsLock(false, "上班", "下班");
-  } else {
-    statusInfo.textContent = "無效打卡區";
-    statusInfo.style.background = "#e74c3c";
-    setButtonsLock(true, "上班", "下班");
-  }
-}
     function getGeoLocation() {
       return new Promise(resolve => {
         if (!navigator.geolocation) { resolve({ lat: "", lng: "" }); return; }
@@ -416,21 +397,20 @@
     }
 
     async function updateTodayRecords() {
-  if (!window.userId) return;
-  try {
-    const date = getTodayString();
-    const timestamp = new Date().getTime();
-    const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}&_t=${timestamp}`, {}, 8000);
-    const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
-    
-    // 更新前端暫存
-    sessionStorage.setItem("cached_today_records", JSON.stringify(data));
-    renderRecords(data);
-  } catch (error) {
-    // 發生錯誤時清空畫面，避免誤導
-    todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
-  }
-}
+      if (!window.userId) return;
+      try {
+        const date = getTodayString();
+        const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 8000);
+        const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+        sessionStorage.setItem("cached_today_records", JSON.stringify(data));
+        renderRecords(data);
+      } catch (error) {
+        const cache = sessionStorage.getItem("cached_today_records");
+        if (!cache) {
+          todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
+        }
+      }
+    }
 
     async function sendSelfMessage(record) {
       try {
@@ -593,5 +573,4 @@
   </script>
 </body>
 </html>
-
 
