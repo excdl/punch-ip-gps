@@ -285,39 +285,58 @@
     }
 
     async function updateStatus() {
-      const ip = await preloadIP();
-      const isCompany = COMPANY_IPS.includes(ip);
-      if (isCompany) {
-        window.allowRemote = false;
-        statusInfo.textContent = "有效打卡區";
-        statusInfo.style.background = "#2ecc71";
-        setButtonsLock(false, "上班", "下班");
-        return;
-      }
-      if (!window.userId) {
-        statusInfo.textContent = "等待 LINE 使用者資訊";
-        statusInfo.style.background = "#95a5a6";
-        setButtonsLock(true, "上班", "下班");
-        return;
-      }
-      try {
-        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 7000);
-        window.allowRemote = result.allowed === true;
-      } catch (error) {
-        window.allowRemote = false;
-      }
+  const ip = await preloadIP();
+  const isCompany = COMPANY_IPS.includes(ip);
+  
+  if (isCompany) {
+    window.allowRemote = true; // 公司內網直接視為允許
+    statusInfo.textContent = "有效打卡區";
+    statusInfo.style.background = "#2ecc71";
+    setButtonsLock(false, "上班", "下班");
+    sessionStorage.setItem("cached_allow_remote", "true");
+    return;
+  }
 
-      if (window.allowRemote) {
-        statusInfo.textContent = "有效打卡區（異地）";
-        statusInfo.style.background = "#2ecc71";
-        setButtonsLock(false, "上班", "下班");
-      } else {
-        statusInfo.textContent = "無效打卡區";
-        statusInfo.style.background = "#e74c3c";
-        setButtonsLock(true, "上班", "下班");
-      }
+  if (!window.userId) {
+    statusInfo.textContent = "等待 LINE 使用者資訊";
+    statusInfo.style.background = "#95a5a6";
+    setButtonsLock(true, "上班", "下班");
+    return;
+  }
+
+  try {
+    // 加上時間戳記防快取
+    const timestamp = new Date().getTime();
+    const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}&_t=${timestamp}`, {}, 7000);
+    
+    if (result && result.success === true) {
+      window.allowRemote = result.allowed === true;
+      // 成功取得後立即更新前端暫存
+      sessionStorage.setItem("cached_allow_remote", window.allowRemote ? "true" : "false");
+    } else {
+      throw new Error("API 回傳異常");
     }
+  } catch (error) {
+    // 【容錯保護】：如果網路短暫逾時或伺服器忙碌，讀取上一次成功的暫存狀態，避免畫面亂跳
+    const lastCachedRemote = sessionStorage.getItem("cached_allow_remote");
+    if (lastCachedRemote !== null) {
+      window.allowRemote = (lastCachedRemote === "true");
+    } else {
+      window.allowRemote = false;
+    }
+  }
 
+  // 根據最終判定結果顯示介面
+  if (window.allowRemote) {
+    statusInfo.textContent = "有效打卡區（異地）";
+    statusInfo.style.background = "#2ecc71";
+    setButtonsLock(false, "上班", "下班");
+  } else {
+    statusInfo.textContent = "無效打卡區";
+    statusInfo.style.background = "#e74c3c";
+    setButtonsLock(true, "上班", "下班");
+  }
+}
     function getGeoLocation() {
       return new Promise(resolve => {
         if (!navigator.geolocation) { resolve({ lat: "", lng: "" }); return; }
