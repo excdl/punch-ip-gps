@@ -397,20 +397,22 @@
     }
 
     async function updateTodayRecords() {
-      if (!window.userId) return;
-      try {
-        const date = getTodayString();
-        const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 8000);
-        const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
-        sessionStorage.setItem("cached_today_records", JSON.stringify(data));
-        renderRecords(data);
-      } catch (error) {
-        const cache = sessionStorage.getItem("cached_today_records");
-        if (!cache) {
-          todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
-        }
-      }
+  if (!window.userId) return;
+  try {
+    const date = getTodayString();
+    // 加上 timestamp 參數防快取，確保每次都抓最新資料
+    const timestamp = new Date().getTime();
+    const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}&_t=${timestamp}`, {}, 8000);
+    const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+    sessionStorage.setItem("cached_today_records", JSON.stringify(data));
+    renderRecords(data);
+  } catch (error) {
+    const cache = sessionStorage.getItem("cached_today_records");
+    if (!cache) {
+      todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
     }
+  }
+}
 
     async function sendSelfMessage(record) {
       try {
