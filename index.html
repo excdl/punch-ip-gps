@@ -419,17 +419,16 @@
   if (!window.userId) return;
   try {
     const date = getTodayString();
-    // 加上 timestamp 參數防快取，確保每次都抓最新資料
     const timestamp = new Date().getTime();
     const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}&_t=${timestamp}`, {}, 8000);
     const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+    
+    // 更新前端暫存
     sessionStorage.setItem("cached_today_records", JSON.stringify(data));
     renderRecords(data);
   } catch (error) {
-    const cache = sessionStorage.getItem("cached_today_records");
-    if (!cache) {
-      todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
-    }
+    // 發生錯誤時清空畫面，避免誤導
+    todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
   }
 }
 
