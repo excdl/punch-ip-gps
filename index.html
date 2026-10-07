@@ -788,13 +788,16 @@ if (btnApprove) {
 
 window.addEventListener("load", async () => {
   try {
+    // 1. 一開始先顯示初始化狀態，鎖住按鈕，避免提早判定為無效打卡區
     statusInfo.textContent = "系統初始化中...";
     statusInfo.style.background = "#95a5a6";
     setButtonsLock(true, "同步中...", "同步中...");
 
+    // 2. 優先載入快取與預先抓取 IP
     loadUserFromCache();
     preloadIP().catch(() => {});
 
+    // 3. 執行 LIFF 初始化與取得使用者 Profile
     const userResult = await initUser();
     if (!userResult) return;
 
@@ -807,6 +810,7 @@ window.addEventListener("load", async () => {
 
     window.initialized = true;
 
+    // 4. 【關鍵修改】確保 userId 已經存在後，才正式向後台查詢「異地特許」等權限
     await updateStatus();
     updateTodayRecords(true).catch(() => {});
 
