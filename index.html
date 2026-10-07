@@ -184,12 +184,13 @@
   </div>
 
   <script>
+<script>
 /*************************************************
- * 智能打卡系統 - 前台 V2
+ * 智能打卡系統 - 前台 V2 (已修正)
  *************************************************/
 
-const API_ENDPOINT = "https://script.google.com/macros/s/AKfycby5x2iYgquRHMwq5OeDp2uyD4eLqpr79vNxJJilQpj2zDpJ8uxbIN-DbIvIt3VZQGrMiQ/exec";
-const COMPANY_IPS = ["220.134.112.245", "114.34.60.48","39.9.98.249"];
+const API_ENDPOINT = "https://script.google.com/macros/s/AKfycbxZMmweoSScgh7SSue7laVPo6k8Z-cWqKwCplLPvTSt-xwle-mMUrMygd1ch_CF6ay7JA/exec";
+const COMPANY_IPS = ["220.134.112.245", "114.34.60.48", "39.9.98.249"];
 const MANAGERS = ["U76174e2a9654ab2c7b1f037b28cb6c86", "U7fdf4fbd467b9a93a23fac01ed03351b"];
 const LIFF_ID = "2010795326-ID1oydWL";
 
@@ -211,8 +212,6 @@ window.userReady = false;
 window.isSubmitting = false;
 window.currentIP = "";
 window.currentRequestId = "";
-window.lastClockStatus = "";
-window.lastClockTime = "";
 window.statusUpdating = false;
 
 function updateDateTime() {
@@ -260,7 +259,7 @@ function loadUserFromCache() {
   if (cachedUserId) {
     window.userId = cachedUserId;
     window.userName = cachedUserName || "使用者";
-    userInfo.textContent = `${window.userName} 您好`;
+    if (userInfo) userInfo.textContent = `${window.userName} 您好`;
   }
   const cachedRecords = sessionStorage.getItem("cached_today_records");
   if (cachedRecords) {
@@ -274,10 +273,10 @@ async function initUser() {
   const profile = await liff.getProfile();
   window.userId = profile.userId;
   window.userName = profile.displayName || "使用者";
-  userInfo.textContent = `${window.userName} 您好`;
+  if (userInfo) userInfo.textContent = `${window.userName} 您好`;
   localStorage.setItem("cached_userId", window.userId);
   localStorage.setItem("cached_userName", window.userName);
-  btnApprove.style.display = MANAGERS.includes(window.userId) ? "block" : "none";
+  if (btnApprove) btnApprove.style.display = MANAGERS.includes(window.userId) ? "block" : "none";
   return true;
 }
 
@@ -357,6 +356,7 @@ function getGeoLocation() {
 }
 
 function startLoading(status) {
+  if (!loadingWrapper) return { circumference: 0 };
   loadingWrapper.style.display = "flex";
   loadingWrapper.style.opacity = "1";
   loadingText.textContent = status === "上班" ? "上班打卡中..." : "下班打卡中...";
@@ -369,11 +369,13 @@ function startLoading(status) {
 }
 
 function updateLoading(progress, circumference) {
+  if (!loadingCircle || !circumference) return;
   const safeProgress = Math.max(0, Math.min(1, progress));
   loadingCircle.style.strokeDashoffset = circumference * (1 - safeProgress);
 }
 
 function stopLoading() {
+  if (!loadingWrapper) return;
   loadingWrapper.style.opacity = "0";
   setTimeout(() => { loadingWrapper.style.display = "none"; loadingWrapper.style.opacity = "1"; }, 180);
 }
@@ -398,6 +400,7 @@ function getTodayString() {
 }
 
 function renderRecords(data) {
+  if (!todayRecords) return;
   if (!Array.isArray(data) || data.length === 0) {
     todayRecords.innerHTML = `<div class="records-empty">今日尚無打卡紀錄</div>`;
     return;
@@ -428,12 +431,25 @@ async function updateTodayRecords() {
   try {
     const date = getTodayString();
     const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 8000);
-    const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+    
+    let data = [];
+    if (Array.isArray(result)) {
+      data = result;
+    } else if (result && Array.isArray(result.data)) {
+      data = result.data;
+    }
+
     sessionStorage.setItem("cached_today_records", JSON.stringify(data));
     renderRecords(data);
   } catch (error) {
     const cache = sessionStorage.getItem("cached_today_records");
-    if (!cache) {
+    if (cache) {
+      try {
+        renderRecords(JSON.parse(cache));
+        return;
+      } catch (e) {}
+    }
+    if (todayRecords) {
       todayRecords.innerHTML = `<div class="records-empty" style="color:#e74c3c;">今日打卡紀錄讀取失敗</div>`;
     }
   }
@@ -445,7 +461,13 @@ async function confirmClockRecord(requestId, status, maxWaitMs = 10000) {
     try {
       const date = getTodayString();
       const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 5000);
-      const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
+      let data = [];
+      if (Array.isArray(result)) {
+        data = result;
+      } else if (result && Array.isArray(result.data)) {
+        data = result.data;
+      }
+
       const found = data.find(record => String(record.requestId || "").trim() === requestId && record.status === status);
       if (found) {
         sessionStorage.setItem("cached_today_records", JSON.stringify(data));
@@ -604,15 +626,17 @@ function escapeHtml(value) {
     .replace(/'/g, "&#039;");
 }
 
-btnStart.onclick = () => { performClockIn("上班"); };
-btnEnd.onclick = () => { performClockIn("下班"); };
-btnApprove.onclick = () => {
+if (btnStart) btnStart.onclick = () => { performClockIn("上班"); };
+if (btnEnd) btnEnd.onclick = () => { performClockIn("下班"); };
+if (btnApprove) btnApprove.onclick = () => {
   window.location.href = "https://script.google.com/macros/s/AKfycbyxXrvVxfgwrI-SdXM03QEYxEpG-xqyjVQcxdNz1IBK3DtFC-kUFjHhRaNtgXNU-Mdu/exec";
 };
 
 window.addEventListener("load", async () => {
-  statusInfo.textContent = "系統初始化中...";
-  statusInfo.style.background = "#95a5a6";
+  if (statusInfo) {
+    statusInfo.textContent = "系統初始化中...";
+    statusInfo.style.background = "#95a5a6";
+  }
   setButtonsLock(true, "同步中...", "同步中...");
 
   loadUserFromCache();
@@ -623,18 +647,23 @@ window.addEventListener("load", async () => {
     if (results[0].status === "rejected") throw results[0].reason;
 
     if (!window.userId) {
-      statusInfo.textContent = "請完成 LINE 登入";
-      statusInfo.style.background = "#95a5a6";
+      if (statusInfo) {
+        statusInfo.textContent = "請完成 LINE 登入";
+        statusInfo.style.background = "#95a5a6";
+      }
       return;
     }
 
     await Promise.allSettled([updateStatus(), updateTodayRecords()]);
   } catch (error) {
-    statusInfo.textContent = "初始化失敗，請重新整理";
-    statusInfo.style.background = "#e74c3c";
+    if (statusInfo) {
+      statusInfo.textContent = "初始化失敗，請重新整理";
+      statusInfo.style.background = "#e74c3c";
+    }
     setButtonsLock(true, "重新整理", "重新整理");
   }
 });
 </script>
+
 </body>
 </html>
