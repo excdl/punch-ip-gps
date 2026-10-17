@@ -468,12 +468,8 @@
       window.isSubmitting = true;
       setButtonsLock(true, "打卡中...", "打卡中...");
 
-      const loading = startLoading(status);
-      let loadingProgress = 0;
-      const loadingTimer = setInterval(() => {
-        loadingProgress = Math.min(loadingProgress + 0.03, 0.9);
-        updateLoading(loadingProgress, loading.circumference);
-      }, 100);
+      // 呼叫我們剛剛設計好的專業版倒數 Loading 提示
+      showClockLoading();
 
       try {
         const ip = await preloadIP();
@@ -501,9 +497,9 @@
           throw new Error(apiData?.message || "打卡失敗，請稍後再試");
         }
 
-        updateLoading(1, loading.circumference);
-        clearInterval(loadingTimer);
-        stopLoading();
+        // 清除倒數計時器並關閉 Loading 視窗
+        if (window.swalTimer) clearInterval(window.swalTimer);
+        Swal.close();
 
         showClockResult(apiData, status, isMakeup);
 
@@ -515,8 +511,9 @@
         setTimeout(() => { updateTodayRecords(); }, 300);
 
       } catch (error) {
-        clearInterval(loadingTimer);
-        stopLoading();
+        if (window.swalTimer) clearInterval(window.swalTimer);
+        Swal.close();
+        
         Swal.fire({
           icon: "error",
           title: "打卡失敗",
@@ -525,7 +522,7 @@
           customClass: { popup: "custom-swal-popup" }
         });
       } finally {
-        clearInterval(loadingTimer);
+        if (window.swalTimer) clearInterval(window.swalTimer);
         window.isSubmitting = false;
         await updateStatus();
       }
