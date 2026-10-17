@@ -129,6 +129,29 @@
       font-weight: bold !important;
       padding: 10px 24px !important;
     }
+
+    /* Loading */
+    #countdownWrapper {
+      display: none;
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100vh;
+      background: rgba(255,255,255,0.92);
+      z-index: 999999;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      backdrop-filter: blur(3px);
+    }
+    #circleProgress {
+      fill: none;
+      stroke-width: 12;
+      stroke-linecap: round;
+      transition: stroke-dashoffset 0.12s linear;
+    }
+    #countdownText { margin-top: 15px; font-size: 17px; font-weight: bold; color: #2c3e50; text-align: center; }
+    .loading-sub { margin-top: 8px; font-size: 13px; color: #7f8c8d; }
   </style>
 </head>
 <body>
@@ -139,6 +162,16 @@
     <div class="buttons-container">
       <button id="btnStart" disabled>同步中…</button>
       <button id="btnEnd" disabled>同步中…</button>
+    </div>
+
+    <!-- Loading -->
+    <div id="countdownWrapper">
+      <svg width="120" height="120" viewBox="0 0 120 120">
+        <circle cx="60" cy="60" r="50" stroke="#eeeeee" stroke-width="12" fill="none"></circle>
+        <circle id="circleProgress" cx="60" cy="60" r="50" stroke="#3498db" stroke-width="12" fill="none" transform="rotate(-90 60 60)"></circle>
+      </svg>
+      <div id="countdownText">打卡中...</div>
+      <div class="loading-sub">請勿關閉此頁面</div>
     </div>
 
     <!-- 今日紀錄 -->
@@ -163,6 +196,9 @@
     const btnEnd = document.getElementById("btnEnd");
     const todayRecords = document.getElementById("todayRecords");
     const btnApprove = document.getElementById("btnApprove");
+    const loadingWrapper = document.getElementById("countdownWrapper");
+    const loadingCircle = document.getElementById("circleProgress");
+    const loadingText = document.getElementById("countdownText");
 
     window.userId = "";
     window.userName = "";
@@ -293,94 +329,26 @@
       });
     }
 
-    // ========================================================= 專業版打卡倒數讀取中彈窗 =========================================================
-    function showClockLoading() {
-      let countdown = 5; // 設定預估秒數
+    function startLoading(status) {
+      loadingWrapper.style.display = "flex";
+      loadingWrapper.style.opacity = "1";
+      loadingText.textContent = status === "上班" ? "上班打卡中..." : "下班打卡中...";
+      const radius = 50;
+      const circumference = 2 * Math.PI * radius;
+      loadingCircle.style.strokeDasharray = circumference;
+      loadingCircle.style.strokeDashoffset = circumference;
+      loadingCircle.style.stroke = status === "下班" ? "#2ecc71" : "#3498db";
+      return { circumference };
+    }
 
-      Swal.fire({
-        html: `
-            <div style="padding: 20px 10px 10px 10px; text-align: center; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
-                
-                <!-- 專業脈動圓環與置中倒數數字 -->
-                <div style="position: relative; width: 90px; height: 90px; margin: 0 auto 20px auto;">
-                    <!-- 外層進度軌道底色 -->
-                    <div style="
-                        position: absolute; top: 0; left: 0; width: 90px; height: 90px; 
-                        border: 3px solid #f1f5f9; border-radius: 50%; box-sizing: border-box;
-                    "></div>
+    function updateLoading(progress, circumference) {
+      const safeProgress = Math.max(0, Math.min(1, progress));
+      loadingCircle.style.strokeDashoffset = circumference * (1 - safeProgress);
+    }
 
-                    <!-- 內層旋轉動態進度環 -->
-                    <div style="
-                        position: absolute; top: 0; left: 0; width: 90px; height: 90px; 
-                        border: 3px solid transparent; border-top-color: #2563eb; border-right-color: #3b82f6;
-                        border-radius: 50%; animation: proSpin 0.9s cubic-bezier(0.4, 0, 0.2, 1) infinite;
-                        box-sizing: border-box;
-                    "></div>
-
-                    <!-- 核心數字與呼吸燈光暈 -->
-                    <div style="
-                        position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-                        display: flex; align-items: center; justify-content: center;
-                        font-size: 30px; font-weight: 700; color: #1e293b;
-                        font-family: 'Courier New', Courier, monospace;
-                        letter-spacing: -1px;
-                        animation: proPulse 1.2s ease-in-out infinite alternate;
-                    ">
-                        <span id="swalCountdown">${countdown}</span>
-                    </div>
-                </div>
-
-                <!-- 狀態說明文字 -->
-                <h3 style="margin: 0 0 6px 0; color: #0f172a; font-size: 18px; font-weight: 600; letter-spacing: 0.3px;">
-                    系統打卡處理中
-                </h3>
-                <p style="margin: 0 0 16px 0; color: #64748b; font-size: 13px;">
-                    請稍後片刻勿關閉視窗
-                </p>
-
-                <!-- 底部微型科技進度條視覺 -->
-                <div style="width: 100%; max-width: 180px; height: 4px; background: #e2e8f0; border-radius: 2px; margin: 0 auto; overflow: hidden;">
-                    <div style="width: 40%; height: 100%; background: #2563eb; border-radius: 2px; animation: proBarMove 1.5s ease-in-out infinite;"></div>
-                </div>
-
-                <style>
-                    @keyframes proSpin { 
-                        0% { transform: rotate(0deg); } 
-                        100% { transform: rotate(360deg); } 
-                    }
-                    @keyframes proPulse { 
-                        0% { opacity: 0.85; transform: scale(0.98); } 
-                        100% { opacity: 1; transform: scale(1.02); } 
-                    }
-                    @keyframes proBarMove {
-                        0% { transform: translateX(-100%); }
-                        50% { transform: translateX(150%); }
-                        100% { transform: translateX(250%); }
-                    }
-                </style>
-            </div>
-        `,
-        showConfirmButton: false,
-        allowOutsideClick: false,
-        allowEscapeKey: false,
-        backdrop: "rgba(15, 23, 42, 0.65)",
-        customClass: { popup: "custom-swal-popup" },
-        didOpen: () => {
-            window.swalTimer = setInterval(() => {
-                countdown--;
-                const el = document.getElementById("swalCountdown");
-                if (el) {
-                    el.textContent = countdown > 0 ? countdown : "0";
-                }
-                if (countdown <= 0) {
-                    clearInterval(window.swalTimer);
-                }
-            }, 1000);
-        },
-        willClose: () => {
-            if (window.swalTimer) clearInterval(window.swalTimer);
-        }
-      });
+    function stopLoading() {
+      loadingWrapper.style.opacity = "0";
+      setTimeout(() => { loadingWrapper.style.display = "none"; loadingWrapper.style.opacity = "1"; }, 180);
     }
 
     function fixTimeFormat(value) {
@@ -500,8 +468,12 @@
       window.isSubmitting = true;
       setButtonsLock(true, "打卡中...", "打卡中...");
 
-      // 呼叫專業版倒數 Loading
-      showClockLoading();
+      const loading = startLoading(status);
+      let loadingProgress = 0;
+      const loadingTimer = setInterval(() => {
+        loadingProgress = Math.min(loadingProgress + 0.03, 0.9);
+        updateLoading(loadingProgress, loading.circumference);
+      }, 100);
 
       try {
         const ip = await preloadIP();
@@ -529,8 +501,9 @@
           throw new Error(apiData?.message || "打卡失敗，請稍後再試");
         }
 
-        if (window.swalTimer) clearInterval(window.swalTimer);
-        Swal.close();
+        updateLoading(1, loading.circumference);
+        clearInterval(loadingTimer);
+        stopLoading();
 
         showClockResult(apiData, status, isMakeup);
 
@@ -542,9 +515,8 @@
         setTimeout(() => { updateTodayRecords(); }, 300);
 
       } catch (error) {
-        if (window.swalTimer) clearInterval(window.swalTimer);
-        Swal.close();
-        
+        clearInterval(loadingTimer);
+        stopLoading();
         Swal.fire({
           icon: "error",
           title: "打卡失敗",
@@ -553,7 +525,7 @@
           customClass: { popup: "custom-swal-popup" }
         });
       } finally {
-        if (window.swalTimer) clearInterval(window.swalTimer);
+        clearInterval(loadingTimer);
         window.isSubmitting = false;
         await updateStatus();
       }
@@ -601,3 +573,4 @@
   </script>
 </body>
 </html>
+
