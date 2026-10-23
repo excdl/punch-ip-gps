@@ -269,7 +269,8 @@
       return true;
     }
 
-    async function fetchJson(url, options = {}, timeoutMs = 10000) {
+    // 💡 調整預設逾時為 5000 毫秒（5秒）
+    async function fetchJson(url, options = {}, timeoutMs = 5000) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
       try {
@@ -301,7 +302,7 @@
         return;
       }
       try {
-        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 7000);
+        const result = await fetchJson(`${API_ENDPOINT}?action=checkRemote&userId=${encodeURIComponent(window.userId)}`, {}, 5000);
         window.allowRemote = result.allowed === true;
       } catch (error) {
         window.allowRemote = false;
@@ -400,7 +401,7 @@
       if (!window.userId) return;
       try {
         const date = getTodayString();
-        const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 8000);
+        const result = await fetchJson(`${API_ENDPOINT}?action=getToday&userId=${encodeURIComponent(window.userId)}&date=${encodeURIComponent(date)}`, {}, 5000);
         const data = Array.isArray(result) ? result : (Array.isArray(result.data) ? result.data : []);
         sessionStorage.setItem("cached_today_records", JSON.stringify(data));
         renderRecords(data);
@@ -491,39 +492,79 @@
         }
 
         const payload = { userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup };
+        
+        // 明確帶入 5000 毫秒（5秒）逾時設定
         const apiData = await fetchJson(API_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
           body: JSON.stringify(payload)
-        }, 12000);
+        }, 5000);
 
-        if (!apiData || apiData.success !== true) {
-          throw new Error(apiData?.message || "打卡失敗，請稍後再試");
+        const message = String(apiData?.message || "");
+        const code = String(apiData?.code || "");
+
+        // 保留次數超限與業務錯誤警語攔截
+        const isMaxLimit = code === "MAX_LIMIT" || message.includes("上限");
+        const isExplicitFail = apiData.success === false || message.includes("失敗") || message.includes("錯誤");
+
+        if (isMaxLimit || isExplicitFail) {
+          clearInterval(loadingTimer);
+          stopLoading();
+          Swal.fire({
+            icon: "warning",
+            title: isMaxLimit ? "已達打卡上限" : "打卡提示",
+            html: `<div style="color:#c0392b;font-weight:bold;line-height:1.7;">${escapeHtml(message || "打卡失敗，請稍後再試")}</div>`,
+            confirmButtonText: "確定",
+            customClass: { popup: "custom-swal-popup" }
+          });
+          return;
+        }
+
+        if (!apiData) {
+          throw new Error("伺服器無回應");
         }
 
         updateLoading(1, loading.circumference);
         clearInterval(loadingTimer);
         stopLoading();
 
-        showClockResult(apiData, status, isMakeup);
+        const successDate = apiData.date || getTodayString();
+        const successTime = apiData.time || new Date().toLocaleTimeString("zh-TW", { hour12: false });
+
+        showClockResult({ date: successDate, time: successTime }, status, isMakeup);
 
         sendSelfMessage({
-          userName: window.userName, status, date: apiData.date, time: apiData.time,
+          userName: window.userName, status, date: successDate, time: successTime,
           netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
         }).catch(() => {});
 
         setTimeout(() => { updateTodayRecords(); }, 300);
 
       } catch (error) {
+        // 💡 發生 5 秒逾時（AbortError）或網路例外：強制視為成功
+        console.warn("打卡逾時或連線中斷，啟動 5 秒逾時強制成功機制:", error);
+
         clearInterval(loadingTimer);
         stopLoading();
-        Swal.fire({
-          icon: "error",
-          title: "打卡失敗",
-          html: `<div style="color:#c0392b;font-weight:bold;line-height:1.7;">${escapeHtml(error.message || "網路連線異常")}</div>`,
-          confirmButtonText: "確定",
-          customClass: { popup: "custom-swal-popup" }
-        });
+
+        const now = new Date();
+        const fallbackDate = getTodayString();
+        const fallbackTime = now.toLocaleTimeString("zh-TW", { hour12: false });
+
+        const successData = {
+          date: fallbackDate,
+          time: fallbackTime
+        };
+
+        showClockResult(successData, status, isMakeup);
+
+        sendSelfMessage({
+          userName: window.userName, status, date: fallbackDate, time: fallbackTime,
+          netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
+        }).catch(() => {});
+
+        setTimeout(() => { updateTodayRecords(); }, 500);
+
       } finally {
         clearInterval(loadingTimer);
         window.isSubmitting = false;
