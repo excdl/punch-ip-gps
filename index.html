@@ -269,7 +269,6 @@
       return true;
     }
 
-    // 💡 調整預設逾時為 5000 毫秒（5秒）
     async function fetchJson(url, options = {}, timeoutMs = 5000) {
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), timeoutMs);
@@ -413,10 +412,20 @@
       }
     }
 
-    async function sendSelfMessage(record) {
+    /**
+     * 💡 優化後：具備自動重試機制 (Retry) 與完整除錯日誌的 LINE Flex 訊息發送函式
+     * @param {Object} record 打卡紀錄資訊
+     * @param {number} retries 剩餘重試次數 (預設 2 次)
+     */
+    async function sendSelfMessage(record, retries = 2) {
+      if (typeof liff === "undefined" || !liff.isInClient()) {
+        console.warn("目前不在 LINE 應用程式內 (LIFF Client)，無法使用 liff.sendMessages() 發送通知。");
+        return false;
+      }
+
+      const headerColor = record.status === "下班" ? "#2ecc71" : "#3498db";
+
       try {
-        if (!window.liff || !liff.isInClient()) return;
-        const headerColor = record.status === "下班" ? "#2ecc71" : "#3498db";
         await liff.sendMessages([{
           type: "flex",
           altText: `【打卡通知】${record.status}成功`,
@@ -437,7 +446,16 @@
             }
           }
         }]);
-      } catch (error) {}
+        console.log("LINE 打卡通知訊息發送成功");
+        return true;
+      } catch (error) {
+        console.error(`LINE 訊息傳送失敗（剩餘重試次數: ${retries}）:`, error);
+        if (retries > 0) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          return sendSelfMessage(record, retries - 1);
+        }
+        return false;
+      }
     }
 
     function showClockResult(apiData, status, isMakeup) {
@@ -493,7 +511,6 @@
 
         const payload = { userId: window.userId, displayName: window.userName, status, ip, lat, lng, customDate, customTime, isMakeup };
         
-        // 明確帶入 5000 毫秒（5秒）逾時設定
         const apiData = await fetchJson(API_ENDPOINT, {
           method: "POST",
           headers: { "Content-Type": "text/plain;charset=utf-8" },
@@ -503,7 +520,6 @@
         const message = String(apiData?.message || "");
         const code = String(apiData?.code || "");
 
-        // 保留次數超限與業務錯誤警語攔截
         const isMaxLimit = code === "MAX_LIMIT" || message.includes("上限");
         const isExplicitFail = apiData.success === false || message.includes("失敗") || message.includes("錯誤");
 
@@ -533,15 +549,17 @@
 
         showClockResult({ date: successDate, time: successTime }, status, isMakeup);
 
+        // 🛡️ 背景發送 LINE 訊息（帶自動重試機制）
         sendSelfMessage({
           userName: window.userName, status, date: successDate, time: successTime,
           netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-        }).catch(() => {});
+        }).catch(err => {
+          console.warn("背景發送 LINE 訊息最終失敗:", err);
+        });
 
         setTimeout(() => { updateTodayRecords(); }, 300);
 
       } catch (error) {
-        // 💡 發生 5 秒逾時（AbortError）或網路例外：強制視為成功
         console.warn("打卡逾時或連線中斷，啟動 5 秒逾時強制成功機制:", error);
 
         clearInterval(loadingTimer);
@@ -558,10 +576,13 @@
 
         showClockResult(successData, status, isMakeup);
 
+        // 🛡️ 逾時 Fallback 強制成功時，同步啟動重試機制發送 LINE 通知
         sendSelfMessage({
           userName: window.userName, status, date: fallbackDate, time: fallbackTime,
           netType: window.allowRemote ? "異地打卡(GPS)" : "公司網路"
-        }).catch(() => {});
+        }).catch(err => {
+          console.warn("背景發送 LINE 訊息（逾時 Fallback）最終失敗:", err);
+        });
 
         setTimeout(() => { updateTodayRecords(); }, 500);
 
